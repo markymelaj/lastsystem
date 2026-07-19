@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 950" role="img">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9f2f7"/><stop offset="1" stop-color="#f8f1df"/></linearGradient>
+    <filter id="grain"><feTurbulence baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .075"/></feComponentTransfer></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="1500" height="950" fill="url(#bg)"/>
+  <rect width="1500" height="950" filter="url(#grain)" opacity=".45"/>
+  <circle cx="270" cy="230" r="190" fill="#d9b85f" opacity=".22" filter="url(#blur)"/>
+  <circle cx="1210" cy="760" r="240" fill="#0b2f66" opacity=".15" filter="url(#blur)"/>
+  <rect x="1040" y="210" width="280" height="190" rx="28" fill="#fff" opacity=".78"/><path d="M1090 330h180M1090 285h130M1090 245h95" stroke="#0b2f66" stroke-width="16" stroke-linecap="round" opacity=".36"/>
+  <ellipse cx="760" cy="765" rx="540" ry="90" fill="#000" opacity=".08"/>
+  
+      <g transform="translate(420,590)">
+        <circle cx="0" cy="-130" r="54" fill="#c79363" opacity=".96"/>
+        <path d="M-70,-55 C-55,-120 55,-120 70,-55 L100,170 L-100,170 Z" fill="#1f456f"/>
+        <path d="M-38,-160 C-18,-198 30,-198 50,-160 C22,-172 -10,-172 -38,-160Z" fill="#3a2d28" opacity=".78"/>
+      </g>
+
+      <g transform="translate(620,560)">
+        <circle cx="0" cy="-130" r="54" fill="#c79363" opacity=".96"/>
+        <path d="M-70,-55 C-55,-120 55,-120 70,-55 L100,170 L-100,170 Z" fill="#bd8f46"/>
+        <path d="M-38,-160 C-18,-198 30,-198 50,-160 C22,-172 -10,-172 -38,-160Z" fill="#3a2d28" opacity=".78"/>
+      </g>
+
+      <g transform="translate(830,585)">
+        <circle cx="0" cy="-130" r="54" fill="#c79363" opacity=".96"/>
+        <path d="M-70,-55 C-55,-120 55,-120 70,-55 L100,170 L-100,170 Z" fill="#244c78"/>
+        <path d="M-38,-160 C-18,-198 30,-198 50,-160 C22,-172 -10,-172 -38,-160Z" fill="#3a2d28" opacity=".78"/>
+      </g>
+
+      <g transform="translate(1030,565)">
+        <circle cx="0" cy="-130" r="54" fill="#c79363" opacity=".96"/>
+        <path d="M-70,-55 C-55,-120 55,-120 70,-55 L100,170 L-100,170 Z" fill="#9b6c3e"/>
+        <path d="M-38,-160 C-18,-198 30,-198 50,-160 C22,-172 -10,-172 -38,-160Z" fill="#3a2d28" opacity=".78"/>
+      </g>
+  <rect x="120" y="100" width="1260" height="740" rx="68" fill="none" stroke="#fff" stroke-width="18" opacity=".28"/>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "name": "senderos-web-sistema",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check sistema/app.js && node --check portal/app.js && node --check api/_auth.js && node --check api/bootstrap-admin.js && node --check api/create-user.js && node --check api/document-download.js && node --check api/init-demo-users.js && node --check api/reset-demo.js && node --check api/public-config.js && node --check api/review-document-submission.js && node --check api/send-communication.js && node --check api/update-user-access.js && node --check app.js && node --check api/calendar-google-start.js && node --check api/calendar-google-callback.js && node --check api/calendar-sync.js"
+  }
+}
