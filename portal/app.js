@@ -118,14 +118,79 @@ function login(){
   const demo=config.demoEnabled?`<div class="demo-box"><p>Entrá con un clic a la vista de la persona:</p><div class="demo-grid"><button type="button" data-demo-login="paciente@senderos.demo"><strong>Paciente</strong><span>Turnos, documentos y comunicados</span></button></div></div>`:'';
   return `<main class="login"><section class="login-card"><img src="../assets/logo-senderos.png" alt=""><h1>Portal seguro</h1><p>Turnos, documentos solicitados y comunicados autorizados por la clínica.</p><form id="login" class="form"><label class="field">Email<input name="email" type="email" required></label><label class="field">Contraseña<input name="password" type="password" required></label><button class="btn primary">Ingresar</button></form>${demo}<a class="back-link" href="/">Volver a la web</a></section></main>`;
 }
+const PORTAL_SECTIONS = [
+  ['home','Inicio','<path d="M12 3 3 10v10a1 1 0 0 0 1 1h6v-6h4v6h6a1 1 0 0 0 1-1V10Z"/>'],
+  ['book','Reservar','<path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm12 7v10H5V9Zm-7 2-1.4 4.2L6 15l4 4 6-7Z"/>'],
+  ['docs','Documentos','<path d="M6 2h8l4 4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.5V7h3.5ZM8 12h8v2H8Zm0 4h8v2H8Z"/>'],
+  ['msgs','Mensajes','<path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 1-2Zm3 6v2h10V9Zm0 4v2h6v-2Z"/>']
+];
+let portalSection = 'home';
+function portalNavIcon(path){ return `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${path}</svg>`; }
+
 function shell(){
   const patient=state.patients.find(item=>item.id===selectedPatientId);
-  return `<main class="wrap"><header class="header"><div class="brand"><img src="../assets/logo-senderos.png" alt=""><div><strong>Senderos de Libertad</strong><small>Portal seguro · ${profile.account_kind==='family'?'familiar autorizado':'paciente'}</small></div></div><div class="header-actions"><button class="btn secondary" data-help-open>Guía</button><button class="btn secondary" id="logout">Salir</button></div></header><section class="hero"><h1>${esc(profile.full_name||'Portal')}</h1><p>Solo se muestra información habilitada para esta cuenta. No se publican evoluciones ni notas clínicas.</p>${state.patients.length>1?`<label class="field">Persona vinculada<select id="patientSelect">${state.patients.map(item=>`<option value="${item.id}" ${item.id===selectedPatientId?'selected':''}>${esc(patientName(item))}</option>`).join('')}</select></label>`:`<p>${esc(patientName(patient))}</p>`}</section><div id="msg"></div><section class="grid"><div class="card"><h2>Turnos</h2>${table(['Fecha','Tipo','Profesional','Estado'],state.appointments.map(item=>[dateTime(item.start_at),esc(item.appointment_types?.name||'-'),esc(item.professionals?.full_name||'-'),tag(item.status)]))}</div>${bookingCard()}<div class="card wide"><h2>Talleres y terapia grupal</h2><p class="card-note">Espacios grupales abiertos por la clínica. Inscribite mientras haya cupo; podés cancelar hasta el inicio.</p>${groupsList()}</div><div class="card"><h2>Documentos disponibles</h2>${documents()}</div><div class="card"><h2>Documentos solicitados</h2>${requirements()}</div><div class="card"><h2>Nueva solicitud</h2><form id="requestForm" class="form"><label class="field">Tipo<select name="request_type"><option value="turno">Turno</option><option value="documento">Documento</option><option value="datos">Corrección de datos</option><option value="otro">Otro</option></select></label><label class="field">Asunto<input name="subject" required></label><label class="field">Mensaje<textarea name="message" rows="5" required></textarea></label><button class="btn primary">Enviar solicitud</button></form></div><div class="card"><h2>Solicitudes enviadas</h2>${table(['Fecha','Tipo','Asunto','Estado'],state.requests.map(item=>[dateTime(item.created_at),esc(item.request_type),esc(item.subject),tag(item.status)]))}</div><div class="card"><h2>Comunicados</h2>${messages()}</div></section><p class="footer-note">Ante una situación de riesgo inmediato, comuníquese con los servicios de emergencia de su zona.</p></main>${helpPanelHtml()}<div id="modalHost"></div>`;
+  const isPatient=profile?.account_kind==='patient';
+  const sections=PORTAL_SECTIONS.filter(([id])=>!(id==='book'&&!isPatient));
+  const pendingDocs=state.requirements.length;
+  const unreadMsgs=state.messages.filter(m=>!m.read_at).length;
+  const badge=(id)=>{ const n=id==='docs'?pendingDocs:id==='msgs'?unreadMsgs:0; return n?`<span class="tabbadge">${n>9?'9+':n}</span>`:''; };
+  const tabbar=sections.map(([id,label,icon])=>`<button class="tabitem ${portalSection===id?'active':''}" data-section="${id}">${portalNavIcon(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+  const picker=state.patients.length>1
+    ? `<label class="patient-switch">Persona vinculada<select id="patientSelect">${state.patients.map(item=>`<option value="${item.id}" ${item.id===selectedPatientId?'selected':''}>${esc(patientName(item))}</option>`).join('')}</select></label>`
+    : '';
+  return `<div class="portal"><header class="p-top"><div class="brand"><img src="../assets/logo-senderos.png" alt=""><div class="brand-txt"><strong>Senderos de Libertad</strong><small>Portal seguro · ${profile.account_kind==='family'?'familiar autorizado':'paciente'}</small></div></div><div class="p-top-actions"><button class="icon-btn" data-help-open title="Guía" aria-label="Guía">${portalNavIcon('<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm.9 15h-1.8v-1.8h1.8Zm1.3-6.2-.8.8c-.6.6-.9 1.1-.9 2.2h-1.8v-.4c0-.9.4-1.6 1-2.2l1.1-1.1a1.6 1.6 0 0 0 .5-1.2A1.7 1.7 0 0 0 12 7a1.7 1.7 0 0 0-1.7 1.7H8.5A3.5 3.5 0 0 1 12 5.2a3.4 3.4 0 0 1 3.5 3.4c0 .8-.3 1.5-.9 2.1Z"/>')}</button><button class="icon-btn" id="logout" title="Salir" aria-label="Salir">${portalNavIcon('<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.2 4.2-1.4 1.4L17.2 11H9v2h8.2l-2.4 2.4 1.4 1.4L21 12Z"/>')}</button></div></header>${picker}<div id="msg"></div><main class="p-main">${sectionView(portalSection,patient)}</main><nav class="tabbar" style="--tabs:${sections.length}">${tabbar}</nav></div>${helpPanelHtml()}<div id="modalHost"></div>`;
+}
+
+function sectionView(id,patient){
+  if(id==='home') return homeSection(patient);
+  if(id==='book') return bookSection();
+  if(id==='docs') return docsSection();
+  if(id==='msgs') return msgsSection();
+  return '';
+}
+
+function greeting(){ const h=new Date().getHours(); return h<12?'Buenos días':h<20?'Buenas tardes':'Buenas noches'; }
+
+function homeSection(patient){
+  const firstName=(profile.full_name||'').trim().split(/\s+/)[0]||'';
+  const upcoming=[...state.appointments].filter(a=>new Date(a.start_at)>=new Date()&&a.status!=='cancelado').slice(0,4);
+  const openGroups=state.groups.filter(g=>{const enrolled=g.my_status&&g.my_status!=='cancelado';return enrolled;});
+  return `<section class="sec"><div class="hero"><p class="hi">${greeting()}${firstName?`, ${esc(firstName)}`:''}</p><h1>${esc(profile.full_name||'Portal')}</h1><p class="hero-sub">Acá ves tus turnos, documentos y mensajes. No se publican evoluciones ni notas clínicas.</p></div>
+  <div class="sec-head"><h2>Próximos turnos</h2>${profile.account_kind==='patient'?`<button class="link-btn" data-section="book">+ Reservar</button>`:''}</div>
+  ${upcoming.length?`<div class="stack">${upcoming.map(apptCard).join('')}</div>`:`<div class="empty">No tenés turnos próximos${profile.account_kind==='patient'?'. Tocá <strong>Reservar</strong> para pedir uno.':'.'}</div>`}
+  ${openGroups.length?`<div class="sec-head mt"><h2>Tus talleres y grupos</h2></div><div class="stack">${openGroups.map(g=>groupCard(g)).join('')}</div>`:''}
+  </section>`;
+}
+
+function apptCard(item){
+  const d=new Date(item.start_at);
+  const day=d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric',month:'short'});
+  return `<article class="ecard"><div class="ecard-date"><span class="ecard-d">${d.getDate()}</span><span class="ecard-m">${d.toLocaleDateString('es-AR',{month:'short'})}</span></div><div class="ecard-body"><strong>${esc(item.appointment_types?.name||'Turno')}</strong><small>${esc(item.professionals?.full_name||'-')}</small><small class="ecard-when">${day} · ${timeShort(item.start_at)}</small></div>${tag(item.status)}</article>`;
 }
 function bookingCard(){
-  if(profile?.account_kind!=='patient')return '';
+  if(profile?.account_kind!=='patient')return '<div class="empty">La reserva de turnos se coordina con el equipo.</div>';
   const today=localDateKey(new Date());
-  return `<div class="card wide"><h2>Sacar un turno</h2><p class="card-note">Elegí profesional, tipo y día: vas a ver solo los horarios libres. El equipo confirma cada turno solicitado.</p><form id="bookingForm" class="form"><div class="form-row"><label class="field">Profesional<select id="bkProfessional" required><option value="">Elegir…</option>${state.professionals.map(item=>`<option value="${item.id}">${esc(item.full_name)} · ${esc(item.role_title||'')}</option>`).join('')}</select></label><label class="field">Tipo de turno<select id="bkType" required>${state.appointmentTypes.map(item=>`<option value="${item.id}" data-minutes="${item.default_minutes||50}">${esc(item.name)}</option>`).join('')}</select></label><label class="field">Día<input type="date" id="bkDate" min="${today}" required></label></div><div class="field"><span>Horarios disponibles</span><div id="bkSlots" class="slot-grid"><p class="muted">Elegí profesional y día para ver los horarios.</p></div></div><label class="field">Motivo (opcional)<input id="bkReason" maxlength="200" placeholder="Ej.: seguimiento, consulta puntual"></label><input type="hidden" id="bkStart"><button class="btn primary" id="bkSubmit" disabled>Elegí un horario</button></form></div>`;
+  return `<div class="sec-head"><h2>Sacar un turno</h2></div><p class="sub">Elegí profesional, tipo y día: vas a ver solo los horarios libres. El equipo confirma cada turno.</p><form id="bookingForm" class="form card-form"><label class="field">Profesional<select id="bkProfessional" required><option value="">Elegir…</option>${state.professionals.map(item=>`<option value="${item.id}">${esc(item.full_name)} · ${esc(item.role_title||'')}</option>`).join('')}</select></label><label class="field">Tipo de turno<select id="bkType" required>${state.appointmentTypes.map(item=>`<option value="${item.id}" data-minutes="${item.default_minutes||50}">${esc(item.name)}</option>`).join('')}</select></label><label class="field">Día<input type="date" id="bkDate" min="${today}" required></label><div class="field"><span>Horarios disponibles</span><div id="bkSlots" class="slot-grid"><p class="muted">Elegí profesional y día para ver los horarios.</p></div></div><label class="field">Motivo (opcional)<input id="bkReason" maxlength="200" placeholder="Ej.: seguimiento, consulta puntual"></label><input type="hidden" id="bkStart"><button class="btn primary full" id="bkSubmit" disabled>Elegí un horario</button></form>`;
+}
+function bookSection(){
+  return `<section class="sec">${bookingCard()}<div class="sec-head mt"><h2>Talleres y terapia grupal</h2></div><p class="sub">Espacios grupales abiertos por la clínica. Inscribite mientras haya cupo; podés cancelar hasta el inicio.</p>${groupsList()}</section>`;
+}
+function docsSection(){
+  return `<section class="sec"><div class="sec-head"><h2>Documentos solicitados</h2>${state.requirements.length?`<span class="count-pill">${state.requirements.length}</span>`:''}</div><p class="sub">Lo que el equipo te pidió adjuntar.</p>${requirements()}<div class="sec-head mt"><h2>Documentos disponibles</h2></div><p class="sub">Descargá lo que la clínica habilita para vos.</p>${documents()}</section>`;
+}
+function msgsSection(){
+  return `<section class="sec"><div class="sec-head"><h2>Comunicados</h2></div>${messages()}<div class="sec-head mt"><h2>Nueva solicitud</h2></div><p class="sub">Pedí una corrección o hacé una consulta al equipo.</p><form id="requestForm" class="form card-form"><label class="field">Tipo<select name="request_type"><option value="turno">Turno</option><option value="documento">Documento</option><option value="datos">Corrección de datos</option><option value="otro">Otro</option></select></label><label class="field">Asunto<input name="subject" required></label><label class="field">Mensaje<textarea name="message" rows="4" required></textarea></label><button class="btn primary full">Enviar solicitud</button></form>${state.requests.length?`<div class="sec-head mt"><h2>Solicitudes enviadas</h2></div><div class="stack">${state.requests.map(item=>`<article class="ecard sm"><div class="ecard-body"><strong>${esc(item.subject)}</strong><small>${esc(item.request_type)} · ${dateTime(item.created_at)}</small></div>${tag(item.status)}</article>`).join('')}</div>`:''}</section>`;
+}
+function groupCard(item){
+  const spots=Math.max(0,item.capacity-Number(item.enrolled_count||0));
+  const enrolled=item.my_status&&item.my_status!=='cancelado';
+  const isFamily=profile?.account_kind==='family';
+  const action=enrolled
+    ?`<span class="tag ok">Inscripto/a</span>${isFamily?'':`<button class="btn secondary" data-group-cancel="${item.my_enrollment_id}">Cancelar</button>`}`
+    :(spots>0
+      ?(isFamily?'<span class="tag">Se coordina con el equipo</span>':`<button class="btn primary" data-group-enroll="${item.id}">Inscribirme</button>`)
+      :'<span class="tag">Sin cupo</span>');
+  return `<article class="gcard"><div class="gcard-body"><strong>${esc(item.title)}</strong><small>${item.session_type==='taller'?'Taller':'Terapia grupal'} · ${esc(item.professional_name||'-')}${item.room_name?` · ${esc(item.room_name)}`:''}</small><small class="ecard-when">${dateTime(item.start_at)} a ${timeShort(item.end_at)}</small><small>${spots} cupo(s) disponible(s)</small>${item.description?`<small class="gcard-desc">${esc(item.description)}</small>`:''}</div><div class="gcard-action">${action}</div></article>`;
 }
 async function refreshPortalSlots(){
   const grid=document.getElementById('bkSlots');if(!grid)return;
@@ -150,17 +215,7 @@ async function refreshPortalSlots(){
 }
 function groupsList(){
   if(!state.groups.length)return '<div class="empty">Por ahora no hay talleres ni grupos abiertos</div>';
-  return `<div class="list">${state.groups.map(item=>{
-    const spots=Math.max(0,item.capacity-Number(item.enrolled_count||0));
-    const enrolled=item.my_status&&item.my_status!=='cancelado';
-    const isFamily=profile?.account_kind==='family';
-    const action=enrolled
-      ?`<span class="tag ok">Inscripto/a</span>${isFamily?'':`<button class="btn secondary" data-group-cancel="${item.my_enrollment_id}">Cancelar</button>`}`
-      :(spots>0
-        ?(isFamily?'<span class="tag">La inscripción se coordina con el equipo</span>':`<button class="btn primary" data-group-enroll="${item.id}">Inscribirme</button>`)
-        :'<span class="tag">Sin cupo</span>');
-    return `<div class="item group-item"><div><strong>${esc(item.title)}</strong><small>${item.session_type==='taller'?'Taller':'Terapia grupal'} · ${esc(item.professional_name||'-')}${item.room_name?` · ${esc(item.room_name)}`:''}</small><small>${dateTime(item.start_at)} a ${timeShort(item.end_at)} · ${spots} cupo(s) disponible(s)</small>${item.description?`<small>${esc(item.description)}</small>`:''}</div><span class="group-actions">${action}</span></div>`;
-  }).join('')}</div>`;
+  return `<div class="stack">${state.groups.map(item=>groupCard(item)).join('')}</div>`;
 }
 function documents(){
   if(!state.documents.length)return '<div class="empty">Sin documentos liberados</div>';
@@ -193,6 +248,18 @@ function bind(){
   document.querySelector('[data-help-close]')?.addEventListener('click',closeHelp);
   document.querySelector('[data-help-overlay]')?.addEventListener('click',closeHelp);
   document.getElementById('patientSelect')?.addEventListener('change',async event=>{selectedPatientId=event.target.value;await load();render();});
+  bindSection();
+}
+function goToSection(id){
+  portalSection=id;
+  const main=document.querySelector('.p-main');
+  const patient=state.patients.find(item=>item.id===selectedPatientId);
+  if(main){main.innerHTML=sectionView(portalSection,patient);main.scrollTop=0;window.scrollTo(0,0);}
+  document.querySelectorAll('.tabitem').forEach(t=>t.classList.toggle('active',t.dataset.section===portalSection));
+  bindSection();
+}
+function bindSection(){
+  document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>goToSection(button.dataset.section)));
   document.getElementById('requestForm')?.addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget);const {error}=await sb.from('portal_requests').insert({patient_id:selectedPatientId,request_type:data.get('request_type'),subject:data.get('subject'),message:data.get('message'),requester_user_id:session.user.id});if(error)return message(error.message,'error');await load();render();message('Solicitud enviada.');});
   document.querySelectorAll('[data-download]').forEach(button=>button.addEventListener('click',()=>downloadDocument(button.dataset.download)));
   document.querySelectorAll('.uploadRequirement').forEach(form=>form.addEventListener('submit',event=>uploadRequirement(event,form.dataset.requirement)));

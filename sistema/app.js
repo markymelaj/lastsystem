@@ -96,9 +96,18 @@ const ICONS = {
   finance:'<path d="M12 2C6.5 2 2 4 2 6.5v11C2 20 6.5 22 12 22s10-2 10-4.5v-11C22 4 17.5 2 12 2Zm0 2c4.7 0 8 1.6 8 2.5S16.7 11 12 11 4 9.4 4 6.5 7.3 4 12 4Zm0 16c-4.7 0-8-1.6-8-2.5v-2.2C5.8 14.4 8.7 15 12 15s6.2-.6 8-1.7v2.2c0 .9-3.3 2.5-8 2.5Z"/>',
   communications:'<path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm3 5h10v2H7Zm0 4h7v2H7Z"/>',
   audit:'<path d="M11 2a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 11 2Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm-1 2v4l3 2 .8-1.3-2.3-1.4V6Z"/>',
-  manual:'<path d="M6 2h11a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 16v2h11a1 1 0 0 0 1-1v-1H6Zm2-12h8v2H8Zm0 4h8v2H8Z"/>'
+  manual:'<path d="M6 2h11a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 16v2h11a1 1 0 0 0 1-1v-1H6Zm2-12h8v2H8Zm0 4h8v2H8Z"/>',
+  logout:'<path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.2 4.2-1.4 1.4L17.2 11H9v2h8.2l-2.4 2.4 1.4 1.4L21 12l-4.8-4.8Z"/>'
 };
 function navIcon(id){ return `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ICONS[id]||''}</svg>`; }
+function navChevron(){ return `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m14.5 6-1.4 1.4 4.6 4.6-4.6 4.6 1.4 1.4 6-6-6-6Zm-6 0L7.1 7.4l4.6 4.6-4.6 4.6L8.5 18l6-6-6-6Z"/></svg>`; }
+const SIDEBAR_KEY = 'sl_sidebar_collapsed';
+function sidebarCollapsed(){ try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch(e){ return false; } }
+function toggleSidebar(){
+  const next = !sidebarCollapsed();
+  try { localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0'); } catch(e){}
+  document.querySelector('.layout')?.classList.toggle('nav-collapsed', next);
+}
 
 // ---------------------------------------------------------------
 // Guía in-app por rol.
@@ -391,8 +400,9 @@ function login() {
 }
 function shell(content) {
   const reset = isAdminRole() && config.demoEnabled ? `<button class="btn danger" data-demo-reset>Restaurar demo</button>` : '';
-  const nav = allowedTabs().map(([id,label]) => `<button data-tab="${id}" class="${activeTab===id?'active':''}">${navIcon(id)}<span>${label}</span></button>`).join('');
-  return `<div class="layout"><aside class="sidebar"><div class="brand"><img src="../assets/logo-senderos.png" alt=""><div><strong>Senderos de Libertad</strong><small>${esc(roleName(profile.role_code))}</small></div></div><nav class="nav">${nav}</nav><div class="side-foot"><button class="side-help" data-manual-open>${navIcon('manual')}<span>Manual de uso</span></button><button class="side-help" data-help-open>${navIcon('audit')}<span>Guía rápida</span></button><button class="logout" data-logout>Cerrar sesión</button></div></aside><main class="main"><header class="topbar"><div><p class="eyebrow">Operación clínica y administrativa</p><h1>${(tabs.find(tab => tab[0]===activeTab)||[])[1] || 'Sistema'}</h1></div><div class="top-actions"><button class="btn secondary" data-help-open>Guía</button>${reset}<button class="btn secondary" data-refresh>Actualizar</button></div></header><div id="messages"></div>${content}</main>${helpPanelHtml()}<div id="modalHost"></div><div id="manualHost"></div></div>`;
+  const nav = allowedTabs().map(([id,label]) => `<button data-tab="${id}" class="${activeTab===id?'active':''}" data-tip="${esc(label)}">${navIcon(id)}<span>${label}</span></button>`).join('');
+  const collapsed = sidebarCollapsed();
+  return `<div class="layout${collapsed?' nav-collapsed':''}"><aside class="sidebar"><div class="brand"><img src="../assets/logo-senderos.png" alt=""><div class="brand-txt"><strong>Senderos de Libertad</strong><small>${esc(roleName(profile.role_code))}</small></div><button class="nav-toggle" data-nav-toggle title="Contraer o expandir el menú" aria-label="Contraer o expandir el menú">${navChevron()}</button></div><nav class="nav">${nav}</nav><div class="side-foot"><button class="side-help" data-manual-open data-tip="Manual de uso">${navIcon('manual')}<span>Manual de uso</span></button><button class="side-help" data-help-open data-tip="Guía rápida">${navIcon('audit')}<span>Guía rápida</span></button><button class="logout" data-logout data-tip="Cerrar sesión">${navIcon('logout')}<span>Cerrar sesión</span></button></div></aside><main class="main"><header class="topbar"><div><p class="eyebrow">Operación clínica y administrativa</p><h1>${(tabs.find(tab => tab[0]===activeTab)||[])[1] || 'Sistema'}</h1></div><div class="top-actions"><button class="btn secondary" data-help-open>Guía</button>${reset}<button class="btn secondary" data-refresh>Actualizar</button></div></header><div id="messages"></div>${content}</main>${helpPanelHtml()}<div id="modalHost"></div><div id="manualHost"></div></div>`;
 }
 function notice(text,type='ok') { const element=document.getElementById('messages'); if(element){ element.innerHTML=`<div class="notice ${type==='error'?'error':'ok'}">${esc(text)}</div>`; element.scrollIntoView({behavior:'smooth',block:'nearest'}); } }
 
@@ -533,6 +543,7 @@ function bindBase() {
   document.querySelector('[data-help-overlay]')?.addEventListener('click',closeHelp);
   document.querySelectorAll('[data-manual-open]').forEach(button=>button.addEventListener('click',()=>{closeHelp();openManual();}));
   document.querySelectorAll('[data-demo-reset]').forEach(button=>button.addEventListener('click',resetDemo));
+  document.querySelector('[data-nav-toggle]')?.addEventListener('click',toggleSidebar);
 }
 async function save(tableName,payload,message) {
   const { error } = await sb.from(tableName).insert(payload);

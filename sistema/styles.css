@@ -41,26 +41,73 @@ h1,h2,h3{font-weight:800;letter-spacing:-.01em}
 .demo-box p{margin:8px 0 0;color:var(--muted);font-size:.85rem}
 
 /* ---------- Layout ---------- */
-.layout{min-height:100vh;display:grid;grid-template-columns:264px minmax(0,1fr)}
-.sidebar{background:linear-gradient(180deg,var(--brand-ink),#0a2650);color:#e8eefb;padding:16px 14px;
-  display:flex;flex-direction:column;gap:14px;position:sticky;top:0;height:100vh}
-.brand{display:flex;align-items:center;gap:11px;padding:6px 8px}
-.brand img{width:42px;height:42px;object-fit:contain;background:#fff;border-radius:10px;padding:3px}
-.brand strong{display:block;font-size:15px;line-height:1.15}
-.brand small{color:#a9bfe4;font-size:12px}
-.nav{display:grid;gap:3px;overflow:auto;margin:-4px -4px;padding:4px}
-.nav button{display:flex;align-items:center;gap:11px;border:0;background:transparent;color:#c3d3ef;
-  text-align:left;border-radius:10px;padding:10px 12px;font-weight:650;font-size:14px;transition:background .15s,color .15s}
-.nav button svg{width:18px;height:18px;flex:none;opacity:.85}
+.layout{min-height:100vh;display:grid;grid-template-columns:var(--sidebar-w,264px) minmax(0,1fr);transition:grid-template-columns .22s ease}
+/* El sidebar es una columna de altura fija con 3 zonas: marca (fija),
+   nav (única zona que scrollea si hace falta) y pie (fijo abajo). */
+.sidebar{background:linear-gradient(180deg,var(--brand-ink),#0a2650);color:#e8eefb;padding:14px 12px;
+  display:flex;flex-direction:column;gap:12px;position:sticky;top:0;height:100vh;overflow:hidden}
+.brand{display:flex;align-items:center;gap:11px;padding:4px 6px;flex:none;position:relative}
+.brand img{width:40px;height:40px;object-fit:contain;background:#fff;border-radius:10px;padding:3px;flex:none}
+.brand-txt{min-width:0;overflow:hidden}
+.brand strong{display:block;font-size:14.5px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{color:#a9bfe4;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+/* Botón para contraer / expandir */
+.nav-toggle{margin-left:auto;flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:#cdd9f2;transition:background .15s,color .15s}
+.nav-toggle svg{width:15px;height:15px;transition:transform .22s ease}
+.nav-toggle:hover{background:rgba(255,255,255,.14);color:#fff}
+
+.nav{display:flex;flex-direction:column;gap:3px;overflow-y:auto;overflow-x:hidden;flex:1 1 auto;min-height:0;margin:0 -4px;padding:2px 4px}
+.nav button{display:flex;align-items:center;gap:11px;border:0;background:transparent;color:#c3d3ef;flex:none;
+  text-align:left;border-radius:10px;padding:10px 12px;font-weight:650;font-size:14px;position:relative;
+  transition:background .15s,color .15s}
+.nav button svg{width:18px;height:18px;flex:none;opacity:.85;transition:opacity .15s}
+.nav button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav button:hover svg{opacity:1}
 .nav button.active{background:rgba(255,255,255,.14);color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
 .nav button.active svg{opacity:1}
-.side-foot{margin-top:auto;display:grid;gap:8px}
-.side-help{display:flex;align-items:center;gap:9px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);
-  color:#fff;border-radius:10px;padding:10px 12px;font-weight:700;font-size:13.5px}
+
+.side-foot{flex:none;display:grid;gap:7px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)}
+.side-help,.logout{display:flex;align-items:center;gap:10px;border-radius:10px;padding:9px 12px;font-weight:700;
+  font-size:13.5px;position:relative;transition:background .15s,color .15s}
+.side-help svg,.logout svg{width:17px;height:17px;flex:none;opacity:.9}
+.side-help span,.logout span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-help{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:#fff}
 .side-help:hover{background:rgba(255,255,255,.12)}
-.logout{border:1px solid rgba(255,255,255,.16);background:transparent;color:#dbe6f8;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13.5px}
+.logout{border:1px solid rgba(255,255,255,.16);background:transparent;color:#dbe6f8}
 .logout:hover{background:rgba(255,255,255,.08)}
+
+/* Scrollbar fina y discreta dentro del nav */
+.nav{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+.nav::-webkit-scrollbar{width:6px}
+.nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:999px}
+.nav::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.34)}
+.nav::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- Sidebar colapsado (solo íconos + tooltips) ---------- */
+.layout.nav-collapsed{--sidebar-w:76px}
+.nav-collapsed .brand-txt{opacity:0;width:0;pointer-events:none}
+.nav-collapsed .brand{justify-content:center}
+.nav-collapsed .nav-toggle{position:absolute;top:-2px;right:-6px}
+.nav-collapsed .nav-toggle svg{transform:rotate(180deg)}
+.nav-collapsed .nav button,
+.nav-collapsed .side-help,
+.nav-collapsed .logout{justify-content:center;padding-left:0;padding-right:0}
+.nav-collapsed .nav button span,
+.nav-collapsed .side-help span,
+.nav-collapsed .logout span{display:none}
+.nav-collapsed .nav button.active{box-shadow:inset 0 -3px 0 var(--accent)}
+/* Tooltip flotante al pasar el cursor cuando está colapsado */
+.nav-collapsed [data-tip]{position:relative}
+.nav-collapsed [data-tip]::after{content:attr(data-tip);position:absolute;left:calc(100% + 12px);top:50%;
+  transform:translateY(-50%) scale(.96);transform-origin:left center;white-space:nowrap;background:var(--ink);
+  color:#fff;font-size:12.5px;font-weight:650;padding:6px 10px;border-radius:8px;box-shadow:var(--shadow-lg);
+  opacity:0;pointer-events:none;transition:opacity .14s ease,transform .14s ease;z-index:40}
+.nav-collapsed [data-tip]::before{content:"";position:absolute;left:calc(100% + 5px);top:50%;transform:translateY(-50%);
+  border:6px solid transparent;border-right-color:var(--ink);opacity:0;transition:opacity .14s ease;z-index:40}
+.nav-collapsed [data-tip]:hover::after{opacity:1;transform:translateY(-50%) scale(1)}
+.nav-collapsed [data-tip]:hover::before{opacity:1}
 
 .main{min-width:0;padding:20px clamp(14px,2.4vw,30px) 40px;overflow:auto}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
@@ -194,16 +241,26 @@ td .cell-strong{font-weight:700;color:var(--ink)}
 
 /* ---------- Responsive ---------- */
 @media(max-width:1080px){
-  .layout{grid-template-columns:1fr}
-  .sidebar{position:relative;height:auto;flex-direction:column}
-  .nav{grid-template-columns:repeat(2,1fr)}
-  .side-foot{grid-auto-flow:column}
+  /* En pantallas chicas el sidebar pasa arriba, horizontal y sin colapsar */
+  .layout,.layout.nav-collapsed{grid-template-columns:1fr;--sidebar-w:auto}
+  .sidebar{position:relative;height:auto;overflow:visible;flex-direction:column;gap:12px}
+  .brand-txt{opacity:1;width:auto}
+  .nav-toggle{display:none}
+  .nav{flex-direction:row;flex-wrap:wrap;overflow:visible;flex:none}
+  .nav button{flex:1 1 auto;min-width:140px;justify-content:center}
+  .nav button span{overflow:visible}
+  .side-foot{grid-auto-flow:column;border-top:0;padding-top:0}
+  /* Neutraliza el modo colapsado si quedó activado en escritorio */
+  .nav-collapsed .nav button span,.nav-collapsed .side-help span,.nav-collapsed .logout span{display:inline}
+  .nav-collapsed .nav button,.nav-collapsed .side-help,.nav-collapsed .logout{justify-content:center;padding:10px 12px}
+  .nav-collapsed [data-tip]::after,.nav-collapsed [data-tip]::before{display:none}
   .board{grid-template-columns:1fr}
   .board-side{position:static}
   .kpis{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:620px){
-  .nav{grid-template-columns:1fr}
+  .nav{flex-direction:column}
+  .nav button{min-width:0}
   .side-foot{grid-auto-flow:row}
   .kpis{grid-template-columns:1fr}
   .form.two-cols{grid-template-columns:1fr}
@@ -213,6 +270,20 @@ td .cell-strong{font-weight:700;color:var(--ink)}
   th,td{white-space:normal}
 }
 .hidden{display:none!important}
+
+/* ---------- Scrollbars finas y consistentes ---------- */
+.main,.table-wrap,.help-body,.manual-content,.manual-nav,.week-grid{scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+.main::-webkit-scrollbar,.table-wrap::-webkit-scrollbar,.help-body::-webkit-scrollbar,.manual-content::-webkit-scrollbar,.manual-nav::-webkit-scrollbar,.week-grid::-webkit-scrollbar{width:9px;height:9px}
+.main::-webkit-scrollbar-thumb,.table-wrap::-webkit-scrollbar-thumb,.help-body::-webkit-scrollbar-thumb,.manual-content::-webkit-scrollbar-thumb,.manual-nav::-webkit-scrollbar-thumb,.week-grid::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+.main::-webkit-scrollbar-thumb:hover,.table-wrap::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:padding-box}
+.main::-webkit-scrollbar-track,.table-wrap::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- Micro-transición al cambiar de pestaña ---------- */
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.main>.board,.main>.stack,.main>.kpis,.main>.panel{animation:viewIn .22s ease both}
+@media(prefers-reduced-motion:reduce){
+  .layout,.nav-toggle svg,.main>.board,.main>.stack,.main>.kpis,.main>.panel{transition:none;animation:none}
+}
 
 /* ---------- Accesos rápidos de demo (login) ---------- */
 .demo-box p{margin:8px 0 0;color:var(--muted);font-size:.85rem}
