@@ -135,3 +135,56 @@ El repo incluye rutas absolutas para `/sistema/app.js` y `/portal/app.js`, más 
 | `CRON_SECRET` | La define Vercel automáticamente para los crons; también puede fijarse a mano. |
 
 Con esto, Dirección conecta el calendario de cada profesional desde **Agenda → Google Calendar**. Los eventos se publican como “Reservado — Senderos”, sin datos clínicos, cada 15 minutos.
+
+## Revisión 2.2 — correcciones de punta a punta
+
+1. **Portal: fuga de listeners al navegar entre secciones.** La tab-bar vive fuera del
+   contenedor que se redibuja, pero se le volvía a enlazar el evento en cada cambio de
+   sección: los manejadores se duplicaban de forma exponencial y el portal terminaba
+   trabándose en el celular tras una decena de toques. Ahora la navegación se resuelve
+   por delegación, enlazada una sola vez.
+2. **Zona horaria unificada.** Todo se muestra y se guarda en la hora de la clínica
+   (`ORGANIZATION_TIMEZONE`), no en la del navegador. Antes, alguien conectado desde otro
+   país veía y cargaba los horarios corridos.
+3. **Bloqueos de agenda con hora corrida.** Los campos `datetime-local` se enviaban sin
+   zona y Postgres los interpretaba como UTC: un bloqueo cargado a las 18:00 quedaba a las
+   15:00. Ahora se convierten a hora de la clínica antes de guardar, y se valida que el fin
+   sea posterior al inicio.
+4. **Auditoría inundada.** `/api/init-demo-users` corre en cada clic de los botones demo y
+   registraba un evento siempre. Ahora solo registra cuando realmente crea cuentas.
+5. **Auditoría legible.** Las acciones se muestran con nombre en castellano (el código
+   técnico queda como referencia) y las acciones del sistema figuran como "sistema" en vez
+   de un guion.
+6. **Estado del portal al cerrar sesión.** El reinicio perdía claves nuevas del estado
+   (`groups`, `professionals`, `appointmentTypes`); ahora hay un único punto de definición.
+
+## Revisión 2.3 — la interfaz refleja los permisos reales
+
+El sistema mostraba formularios y botones a roles que la base de datos rechaza por RLS.
+La persona completaba el formulario y recibía un error técnico sin entender por qué. Era el
+mismo problema que reportó el dueño de la clínica al principio ("no pude cargar nada").
+
+Ahora cada formulario y cada botón está condicionado por el mismo predicado que su política
+SQL, y cuando un rol no puede ejecutar una acción ve una explicación en castellano en lugar
+del formulario.
+
+| Acción | Quién puede (SQL) |
+| --- | --- |
+| Alta de paciente, referente y programa | Dirección, Coordinación clínica, Admisión |
+| Alta de profesional y programas | Dirección, Coordinación clínica |
+| Agendar, disponibilidad, bloqueos, grupos | Los anteriores + Admisión + equipo clínico (solo su propia agenda) |
+| Historia clínica | Dirección, Coordinación clínica, equipo clínico (solo pacientes asignados) |
+| Documentos | Los anteriores + Admisión |
+| Pagos | Dirección, Finanzas |
+| Comunicados | Dirección, Coordinación, Admisión, Comunicaciones |
+| Activar/desactivar cuentas y restablecer contraseñas | Solo Dirección |
+| Crear cuentas de auditoría | Solo super_admin |
+
+Además, los desplegables de profesional quedaron acotados: el equipo clínico solo puede
+agendar, publicar grupos y cargar disponibilidad sobre su propia agenda, que es lo que
+permite `can_manage_professional_schedule()`. Antes ofrecía a todo el equipo y fallaba al
+confirmar.
+
+**Pestaña Profesionales:** para el equipo clínico ahora abre con *Mi ficha* (personas a
+cargo, turnos y grupos próximos, disponibilidad propia con aviso si no está cargada) y
+debajo el directorio del equipo. Para administración sigue siendo el directorio y el alta.

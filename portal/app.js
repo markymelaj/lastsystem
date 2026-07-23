@@ -1,6 +1,7 @@
 const root = document.getElementById('portal');
 let sb; let session; let profile; let config = {}; let selectedPatientId = null;
-let state = { patients:[], appointments:[], documents:[], requirements:[], submissions:[], requests:[], messages:[], professionals:[], appointmentTypes:[], groups:[] };
+function emptyPortalState(){ return { patients:[], appointments:[], documents:[], requirements:[], submissions:[], requests:[], messages:[], professionals:[], appointmentTypes:[], groups:[] }; }
+let state = emptyPortalState();
 function friendly(error){
   const raw=String(error?.message||error||'');
   if(/row-level security/i.test(raw))return 'Esta cuenta no tiene permiso para esa acción.';
@@ -8,11 +9,31 @@ function friendly(error){
   if(/payload too large|exceeded/i.test(raw))return 'El archivo supera el máximo de 10 MB.';
   return raw||'No se pudo completar la acción.';
 }
-function timeShort(value){return value?new Date(value).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'-';}
-function localDateKey(value){const d=new Date(value);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// --- Zona horaria de la clínica -------------------------------------------
+// Todo se muestra y se guarda en la hora de la organización (config.timezone),
+// no en la del navegador: si alguien del equipo se conecta desde otro país,
+// sigue viendo y cargando los horarios reales de la clínica.
+function orgTz(){ return config.timezone || 'America/Argentina/Mendoza'; }
+function tzOffsetMs(date, tz){
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    .formatToParts(date).map(p=>[p.type,p.value]));
+  return Date.UTC(parts.year,parts.month-1,parts.day,parts.hour%24,parts.minute,parts.second) - date.getTime();
+}
+// "2026-07-25" + "18:00" entendidos como hora de la clínica -> ISO en UTC.
+function orgIso(dateStr, timeStr){
+  const guess = new Date(`${dateStr}T${timeStr}:00Z`);
+  return new Date(guess.getTime() - tzOffsetMs(guess, orgTz())).toISOString();
+}
+// Fecha "YYYY-MM-DD" del instante, según la clínica.
+function orgDateKey(value){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:orgTz(),year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+}
+function timeShort(value){return value?new Intl.DateTimeFormat('es-AR',{hour:'2-digit',minute:'2-digit',timeZone:orgTz()}).format(new Date(value)):'-';}
+function localDateKey(value){return orgDateKey(value);}
 
 function esc(value=''){return String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));}
-function dateTime(value){return value?new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value)):'-';}
+function dateTime(value){return value?new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short',timeZone:orgTz()}).format(new Date(value)):'-';}
 function tag(value){return `<span class="tag">${esc(value||'-')}</span>`;}
 function table(headers,rows){return rows.length?`<div class="table-wrap"><table><thead><tr>${headers.map(item=>`<th>${item}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(cell=>`<td>${cell??'-'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<div class="empty">Sin registros</div>';}
 function patientName(patient){return patient?`${patient.first_name||''} ${patient.last_name||''}`.trim():'-';}
@@ -81,7 +102,7 @@ async function init(){
     if(!config.supabaseUrl||!config.supabaseAnonKey)throw new Error('Portal no configurado.');
     sb=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true}});
     const {data}=await sb.auth.getSession();session=data.session;
-    sb.auth.onAuthStateChange(async(_event,next)=>{session=next;if(next)await load();else{profile=null;state={patients:[],appointments:[],documents:[],requirements:[],submissions:[],requests:[],messages:[]};}render();});
+    sb.auth.onAuthStateChange(async(_event,next)=>{session=next;if(next)await load();else{profile=null;state=emptyPortalState();}render();});
     if(session)await load();render();
   }catch(error){root.innerHTML=`<main class="login"><section class="login-card"><h1>Portal no disponible</h1><p>${esc(error.message)}</p></section></main>`;}
 }
@@ -164,8 +185,8 @@ function homeSection(patient){
 
 function apptCard(item){
   const d=new Date(item.start_at);
-  const day=d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric',month:'short'});
-  return `<article class="ecard"><div class="ecard-date"><span class="ecard-d">${d.getDate()}</span><span class="ecard-m">${d.toLocaleDateString('es-AR',{month:'short'})}</span></div><div class="ecard-body"><strong>${esc(item.appointment_types?.name||'Turno')}</strong><small>${esc(item.professionals?.full_name||'-')}</small><small class="ecard-when">${day} · ${timeShort(item.start_at)}</small></div>${tag(item.status)}</article>`;
+  const day=new Intl.DateTimeFormat('es-AR',{weekday:'short',day:'numeric',month:'short',timeZone:orgTz()}).format(d);
+  return `<article class="ecard"><div class="ecard-date"><span class="ecard-d">${new Intl.DateTimeFormat('es-AR',{day:'numeric',timeZone:orgTz()}).format(d)}</span><span class="ecard-m">${new Intl.DateTimeFormat('es-AR',{month:'short',timeZone:orgTz()}).format(d)}</span></div><div class="ecard-body"><strong>${esc(item.appointment_types?.name||'Turno')}</strong><small>${esc(item.professionals?.full_name||'-')}</small><small class="ecard-when">${day} · ${timeShort(item.start_at)}</small></div>${tag(item.status)}</article>`;
 }
 function bookingCard(){
   if(profile?.account_kind!=='patient')return '<div class="empty">La reserva de turnos se coordina con el equipo.</div>';
@@ -248,6 +269,14 @@ function bind(){
   document.querySelector('[data-help-close]')?.addEventListener('click',closeHelp);
   document.querySelector('[data-help-overlay]')?.addEventListener('click',closeHelp);
   document.getElementById('patientSelect')?.addEventListener('change',async event=>{selectedPatientId=event.target.value;await load();render();});
+  // La navegación entre secciones se resuelve por delegación en el
+  // contenedor: la tab-bar vive fuera de .p-main y no se vuelve a
+  // dibujar al cambiar de sección, así que enlazarla en bindSection()
+  // acumulaba un listener nuevo por cada toque.
+  document.querySelector('.portal')?.addEventListener('click',event=>{
+    const target=event.target.closest('[data-section]');
+    if(target)goToSection(target.dataset.section);
+  });
   bindSection();
 }
 function goToSection(id){
@@ -259,7 +288,6 @@ function goToSection(id){
   bindSection();
 }
 function bindSection(){
-  document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>goToSection(button.dataset.section)));
   document.getElementById('requestForm')?.addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget);const {error}=await sb.from('portal_requests').insert({patient_id:selectedPatientId,request_type:data.get('request_type'),subject:data.get('subject'),message:data.get('message'),requester_user_id:session.user.id});if(error)return message(error.message,'error');await load();render();message('Solicitud enviada.');});
   document.querySelectorAll('[data-download]').forEach(button=>button.addEventListener('click',()=>downloadDocument(button.dataset.download)));
   document.querySelectorAll('.uploadRequirement').forEach(form=>form.addEventListener('submit',event=>uploadRequirement(event,form.dataset.requirement)));

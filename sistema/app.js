@@ -29,9 +29,29 @@ function esc(value='') { return String(value).replace(/[&<>'"]/g, char => ({'&':
 function name(person) { return person ? `${person.first_name || ''} ${person.last_name || ''}`.trim() : '-'; }
 function roleName(code) { return (roles.find(row => row[0] === code) || [code])[1]; }
 function tag(value, kind='') { return `<span class="tag ${kind}">${esc(value || '-')}</span>`; }
-function dateTime(value) { return value ? new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short'}).format(new Date(value)) : '-'; }
-function timeShort(value) { return value ? new Date(value).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '-'; }
-function localDateKey(value) { const d = new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// --- Zona horaria de la clínica -------------------------------------------
+// Todo se muestra y se guarda en la hora de la organización (config.timezone),
+// no en la del navegador: si alguien del equipo se conecta desde otro país,
+// sigue viendo y cargando los horarios reales de la clínica.
+function orgTz(){ return config.timezone || 'America/Argentina/Mendoza'; }
+function tzOffsetMs(date, tz){
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    .formatToParts(date).map(p=>[p.type,p.value]));
+  return Date.UTC(parts.year,parts.month-1,parts.day,parts.hour%24,parts.minute,parts.second) - date.getTime();
+}
+// "2026-07-25" + "18:00" entendidos como hora de la clínica -> ISO en UTC.
+function orgIso(dateStr, timeStr){
+  const guess = new Date(`${dateStr}T${timeStr}:00Z`);
+  return new Date(guess.getTime() - tzOffsetMs(guess, orgTz())).toISOString();
+}
+// Fecha "YYYY-MM-DD" del instante, según la clínica.
+function orgDateKey(value){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:orgTz(),year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
+}
+function dateTime(value) { return value ? new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short',timeZone:orgTz()}).format(new Date(value)) : '-'; }
+function timeShort(value) { return value ? new Intl.DateTimeFormat('es-AR',{hour:'2-digit',minute:'2-digit',timeZone:orgTz()}).format(new Date(value)) : '-'; }
+function localDateKey(value) { return orgDateKey(value); }
 function money(value,currency='ARS') { return `${currency} ${Number(value || 0).toLocaleString('es-AR')}`; }
 function table(headers, rows) {
   if (!rows.length) return '<div class="empty">Sin registros</div>';
@@ -53,6 +73,25 @@ function canFinance() { return ['super_admin','direction','finance'].includes(pr
 function canCommunicate() { return ['super_admin','direction','clinical_coordination','admission','communications'].includes(profile?.role_code); }
 function canManageDocuments() { return ['super_admin','direction','clinical_coordination','admission','professional','medical','psychologist','social_worker','therapeutic_operator'].includes(profile?.role_code); }
 function canSchedule() { return ['super_admin','direction','clinical_coordination','admission','professional','medical','psychologist','social_worker','therapeutic_operator'].includes(profile?.role_code); }
+// Espeja can_write_operational_data() del SQL: quién puede dar de alta o
+// editar pacientes, referentes y programas asignados. Si la interfaz muestra
+// un formulario a un rol que no está acá, la base lo rechaza por RLS y la
+// persona ve un error sin entender por qué.
+function canWriteOperational() { return ['super_admin','direction','clinical_coordination','admission'].includes(profile?.role_code); }
+// Espeja can_access_clinical_data().
+function canAccessClinical() { return ['super_admin','direction','clinical_coordination','professional','medical','psychologist','social_worker','therapeutic_operator'].includes(profile?.role_code); }
+// Espeja can_manage_professional_schedule(): la administración gestiona la
+// agenda de cualquiera; el equipo clínico, solo la propia.
+function managesAnySchedule() { return ['super_admin','direction','clinical_coordination','admission'].includes(profile?.role_code); }
+function schedulableProfessionals() {
+  if (managesAnySchedule()) return state.professionals;
+  if (isClinicalRole() && profile?.professional_id) return state.professionals.filter(item=>item.id===profile.professional_id);
+  return [];
+}
+// Aviso reutilizable cuando un rol no puede ejecutar una acción.
+function noPermissionPanel(title, text) {
+  return `<section class="panel"><h2>${esc(title)}</h2><p class="muted">${esc(text)}</p></section>`;
+}
 function isClinicalRole() { return ['professional','medical','psychologist','social_worker','therapeutic_operator'].includes(profile?.role_code); }
 function isAdminRole() { return ['super_admin','direction'].includes(profile?.role_code); }
 function assignedPatientIds() {
@@ -427,14 +466,48 @@ function groupCount(sessionId){ return state.groupEnrollments.filter(item=>item.
 
 function patientsTab() {
   const rows = state.patients.map(patient => [esc(name(patient)),esc(patient.document_number||'-'),tag(patient.admission_status),tag(patient.risk_level,patient.risk_level==='alto'?'red':''),esc(patient.phone||'-')]);
-  const form = `<section class="panel"><h2>Alta de paciente y referente</h2><form id="patientForm" class="form two-cols">${field('first_name','Nombre','text',true)}${field('last_name','Apellido','text',true)}${field('document_number','DNI','text')}${field('birth_date','Nacimiento','date')}${field('phone','Teléfono')}${field('email','Email','email')}<label class="field">Estado<select name="admission_status"><option value="preingreso">Preingreso</option><option value="evaluacion">Evaluación</option><option value="admitido">Admitido</option><option value="en_tratamiento">En tratamiento</option><option value="seguimiento">Seguimiento</option></select></label><label class="field">Riesgo<select name="risk_level"><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></label><label class="field full">Programa<select name="program_id"><option value="">Sin asignar</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field full">Profesional responsable<select name="professional_id"><option value="">Sin asignar</option>${selectOptions(state.professionals,item=>item.full_name)}</select></label><h3 class="field full">Familiar o referente</h3>${field('contact_name','Nombre')}${field('contact_email','Email','email')}${field('contact_phone','Teléfono')}<label class="field">Relación<input name="contact_relationship" placeholder="Madre, tutor, referente"></label><label class="field inline full"><input type="checkbox" name="contact_authorized"> Autorizar portal y comunicaciones para este contacto</label><button class="btn primary full">Guardar paciente</button></form></section>`;
+  const form = !canWriteOperational()
+    ? noPermissionPanel('Alta de paciente y referente','El alta de personas la realizan Dirección, Coordinación clínica o Admisión. Desde tu rol podés consultar la información de quienes tenés a cargo.')
+    : `<section class="panel"><h2>Alta de paciente y referente</h2><form id="patientForm" class="form two-cols">${field('first_name','Nombre','text',true)}${field('last_name','Apellido','text',true)}${field('document_number','DNI','text')}${field('birth_date','Nacimiento','date')}${field('phone','Teléfono')}${field('email','Email','email')}<label class="field">Estado<select name="admission_status"><option value="preingreso">Preingreso</option><option value="evaluacion">Evaluación</option><option value="admitido">Admitido</option><option value="en_tratamiento">En tratamiento</option><option value="seguimiento">Seguimiento</option></select></label><label class="field">Riesgo<select name="risk_level"><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></label><label class="field full">Programa<select name="program_id"><option value="">Sin asignar</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field full">Profesional responsable<select name="professional_id"><option value="">Sin asignar</option>${selectOptions(state.professionals,item=>item.full_name)}</select></label><h3 class="field full">Familiar o referente</h3>${field('contact_name','Nombre')}${field('contact_email','Email','email')}${field('contact_phone','Teléfono')}<label class="field">Relación<input name="contact_relationship" placeholder="Madre, tutor, referente"></label><label class="field inline full"><input type="checkbox" name="contact_authorized"> Autorizar portal y comunicaciones para este contacto</label><button class="btn primary full">Guardar paciente</button></form></section>`;
   return `<div class="board"><div class="board-main"><section class="panel"><h2>Personas acompañadas <span class="pill">${state.patients.length}</span></h2>${table(['Paciente','DNI','Estado','Riesgo','Teléfono'],rows)}</section></div><aside class="board-side">${form}</aside></div>`;
 }
 function professionalsTab() {
   const rows = state.professionals.map(item => [esc(item.full_name),esc(item.role_title),esc(item.specialty||'-'),esc(item.email||'-')]);
-  const form = isAdmin() ? `<section class="panel"><h2>Alta de profesional</h2><form id="professionalForm" class="form two-cols">${field('full_name','Nombre completo','text',true)}${field('role_title','Cargo','text',true)}${field('specialty','Especialidad')}${field('license_number','Matrícula')}${field('email','Email','email')}${field('phone','Teléfono')}<label class="field full">Perfil<textarea name="bio" rows="3"></textarea></label><button class="btn primary full">Guardar profesional</button></form><p class="panel-note">Después del alta: creá su cuenta en <strong>Accesos</strong> y cargá su <strong>disponibilidad</strong> en Agenda para poder asignarle turnos.</p></section>` : `<section class="panel"><h2>Alta de profesional</h2><p class="muted">El alta y la edición del equipo la realizan Dirección o Coordinación clínica. Si falta un profesional, pedile el alta a tu coordinación.</p></section>`;
-  const main=`<section class="panel"><h2>Equipo profesional <span class="pill">${state.professionals.length}</span></h2>${table(['Nombre','Cargo','Especialidad','Email'],rows)}</section>`;
+  const form = isAdmin()
+    ? `<section class="panel"><h2>Alta de profesional</h2><form id="professionalForm" class="form two-cols">${field('full_name','Nombre completo','text',true)}${field('role_title','Cargo','text',true)}${field('specialty','Especialidad')}${field('license_number','Matrícula')}${field('email','Email','email')}${field('phone','Teléfono')}<label class="field full">Perfil<textarea name="bio" rows="3"></textarea></label><button class="btn primary full">Guardar profesional</button></form><p class="panel-note">Después del alta: creá su cuenta en <strong>Accesos</strong> y cargá su <strong>disponibilidad</strong> en Agenda para poder asignarle turnos.</p></section>`
+    : noPermissionPanel('Alta de profesional','El alta y la edición del equipo las realizan Dirección o Coordinación clínica. Si falta un profesional, pedile el alta a tu coordinación.');
+  const directory = `<section class="panel"><h2>Equipo profesional <span class="pill">${state.professionals.length}</span></h2><p class="panel-note">Directorio de contacto del equipo.</p>${table(['Nombre','Cargo','Especialidad','Email'],rows)}</section>`;
+  // El equipo clínico abre esta pestaña para verse a sí mismo, no para
+  // consultar un listado: primero su ficha con su carga real de trabajo,
+  // y el directorio del equipo debajo como referencia.
+  const main = isClinicalRole() ? myProfessionalCard() + directory : directory;
   return `<div class="board"><div class="board-main">${main}</div><aside class="board-side">${form}</aside></div>`;
+}
+function myProfessionalCard() {
+  const me = state.professionals.find(item => item.id === profile?.professional_id);
+  if (!me) return noPermissionPanel('Mi ficha profesional','Tu cuenta todavía no está vinculada a una ficha profesional. Pedile a Dirección que la vincule desde Accesos: sin ese vínculo no podés tener agenda ni pacientes asignados.');
+  const myPatients = scopedPatients();
+  const now = new Date();
+  const myAppointments = state.appointments.filter(item => item.professional_id === me.id && new Date(item.start_at) >= now && !['cancelado','reprogramado'].includes(item.status));
+  const myGroups = state.groups.filter(item => item.professional_id === me.id && item.status === 'programado' && new Date(item.start_at) >= now);
+  const myAvailability = state.availability.filter(item => item.professional_id === me.id);
+  const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const availabilityText = myAvailability.length
+    ? myAvailability.map(item => `${days[item.weekday]} ${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}`).join(' · ')
+    : 'Sin disponibilidad cargada: nadie puede asignarte turnos hasta que la definas en Agenda.';
+  const patientRows = myPatients.map(item => [
+    esc(name(item)),
+    tag(item.admission_status),
+    tag(item.risk_level, item.risk_level === 'alto' ? 'red' : ''),
+    esc((state.appointments.filter(a => a.patient_id === item.id && a.professional_id === me.id && new Date(a.start_at) >= now && !['cancelado','reprogramado'].includes(a.status)).map(a => dateTime(a.start_at))[0]) || 'sin turno próximo')
+  ]);
+  return `<section class="panel highlight"><h2>Mi ficha · ${esc(me.full_name)}</h2>
+    <p class="muted">${esc(me.role_title || '')}${me.specialty ? ` · ${esc(me.specialty)}` : ''}${me.license_number ? ` · Matrícula ${esc(me.license_number)}` : ''}</p>
+    <div class="kpis"><div class="kpi b1"><span>Personas a mi cargo</span><strong>${myPatients.length}</strong></div><div class="kpi"><span>Mis turnos próximos</span><strong>${myAppointments.length}</strong></div><div class="kpi b4"><span>Mis grupos próximos</span><strong>${myGroups.length}</strong></div></div>
+    <p class="${myAvailability.length ? 'panel-note' : 'notice warn-inline'}"><strong>Mi disponibilidad:</strong> ${esc(availabilityText)}</p>
+    <h3 style="margin:14px 0 6px">Personas que acompaño</h3>
+    ${table(['Persona','Estado','Riesgo','Próximo turno'], patientRows)}
+  </section>`;
 }
 
 function weekCalendar() {
@@ -448,15 +521,24 @@ function weekCalendar() {
       ...entries.map(item=>`<div class="cal-item"><small>${timeShort(item.start_at)}</small><strong>${esc(name(item.patients))}</strong><small>${esc(item.professionals?.full_name||'-')}</small></div>`),
       ...groups.map(item=>`<div class="cal-item group"><small>${timeShort(item.start_at)}</small><strong>${esc(item.title)}</strong><small>${item.session_type==='taller'?'Taller':'Terapia grupal'} · ${groupCount(item.id)}/${item.capacity}</small></div>`)
     ].join('');
-    return `<section class="panel cal-day"><strong class="cal-head">${day.toLocaleDateString('es-AR',{weekday:'short',day:'numeric'})}</strong>${cells || '<p class="muted cal-empty">Sin actividad</p>'}</section>`;
+    return `<section class="panel cal-day"><strong class="cal-head">${new Intl.DateTimeFormat('es-AR',{weekday:'short',day:'numeric',timeZone:orgTz()}).format(day)}</strong>${cells || '<p class="muted cal-empty">Sin actividad</p>'}</section>`;
   }).join('')}</div>`;
 }
 
 function scheduleTab() {
-  const appointmentRows = state.appointments.map(item => [dateTime(item.start_at),esc(name(item.patients)),esc(item.professionals?.full_name||'-'),esc(item.rooms?.name||'-'),tag(item.status,item.status==='solicitado'?'amber':''),`<div class="row-actions">${['confirmado','asistido','ausente','cancelado','reprogramado'].map(status=>`<button class="btn small secondary" data-appointment-status="${status}" data-id="${item.id}">${status}</button>`).join('')}</div>`]);
-  const create = `<section class="panel"><h2>Agendar turno</h2><p class="panel-note">Elegí profesional, tipo y día: se muestran solo los horarios libres (descuenta turnos, bloqueos y grupos).</p><form id="appointmentForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Profesional<select name="professional_id" id="slotProfessional" required>${selectOptions(state.professionals,item=>item.full_name)}</select></label><label class="field">Tipo<select name="appointment_type_id" id="slotType" required>${state.appointmentTypes.map(item=>`<option value="${item.id}" data-minutes="${item.default_minutes||50}">${esc(item.name)}</option>`).join('')}</select></label><label class="field">Día<input type="date" id="slotDate" required min="${localDateKey(new Date())}"></label><div class="field full"><span>Horarios disponibles</span><div id="slotGrid" class="slot-grid"><p class="muted">Elegí profesional y día para ver los horarios.</p></div></div><label class="field">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label><label class="field">Programa<select name="program_id"><option value="">Sin programa</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field">Modalidad<select name="modality"><option value="presencial">Presencial</option><option value="online">Online</option></select></label><label class="field">Motivo<input name="reason"></label><input type="hidden" name="start_at" id="slotStart"><input type="hidden" name="end_at" id="slotEnd"><button class="btn primary full" id="slotSubmit" disabled>Elegí un horario</button></form></section>`;
-  const availability = `<section class="panel"><h2>Disponibilidad profesional</h2><form id="availabilityForm" class="form two-cols"><label class="field full">Profesional<select name="professional_id" required>${selectOptions(state.professionals,item=>item.full_name)}</select></label><label class="field">Día<select name="weekday"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="0">Domingo</option></select></label>${field('start_time','Desde','time',true)}${field('end_time','Hasta','time',true)}${field('effective_from','Vigente desde','date',true)}<button class="btn secondary full">Agregar disponibilidad</button></form><div class="list">${state.availability.map(item=>`<div class="item"><strong>${esc(item.professionals?.full_name||'-')}</strong><span>${['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][item.weekday]} · ${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}</span></div>`).join('') || '<p class="muted">Sin disponibilidad cargada. Sin este paso no se pueden ofrecer turnos.</p>'}</div></section>`;
-  const block = `<section class="panel"><h2>Bloquear horario</h2><form id="blockForm" class="form two-cols"><label class="field full">Profesional<select name="professional_id"><option value="">Solo sala</option>${selectOptions(state.professionals,item=>item.full_name)}</select></label><label class="field full">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label>${field('title','Motivo','text',true)}<label class="field">Tipo<select name="block_type"><option value="manual">Bloqueo manual</option><option value="leave">Licencia</option><option value="meeting">Reunión</option><option value="external_busy">Ocupado externo</option></select></label>${field('start_at','Inicio','datetime-local',true)}${field('end_at','Fin','datetime-local',true)}<button class="btn danger full">Bloquear</button></form></section>`;
+  const canAct = canSchedule();
+  const mySchedule = schedulableProfessionals();
+  const noProfile = canAct && !mySchedule.length;
+  const appointmentRows = state.appointments.map(item => [dateTime(item.start_at),esc(name(item.patients)),esc(item.professionals?.full_name||'-'),esc(item.rooms?.name||'-'),tag(item.status,item.status==='solicitado'?'amber':''),canAct?`<div class="row-actions">${['confirmado','asistido','ausente','cancelado','reprogramado'].map(status=>`<button class="btn small secondary" data-appointment-status="${status}" data-id="${item.id}">${status}</button>`).join('')}</div>`:'<span class="muted">solo consulta</span>']);
+  const create = !canAct
+    ? noPermissionPanel('Agendar turno','Tu rol tiene acceso de consulta a la agenda. El alta de turnos la realizan Admisión, Coordinación, Dirección y el equipo profesional sobre su propia agenda.')
+    : noProfile
+    ? noPermissionPanel('Agendar turno','Tu cuenta todavía no está vinculada a una ficha profesional, así que no se puede determinar tu agenda. Pedile a Dirección que la vincule desde Accesos.')
+    : `<section class="panel"><h2>Agendar turno</h2><p class="panel-note">Elegí profesional, tipo y día: se muestran solo los horarios libres (descuenta turnos, bloqueos y grupos).</p><form id="appointmentForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Profesional<select name="professional_id" id="slotProfessional" required>${selectOptions(mySchedule,item=>item.full_name)}</select></label><label class="field">Tipo<select name="appointment_type_id" id="slotType" required>${state.appointmentTypes.map(item=>`<option value="${item.id}" data-minutes="${item.default_minutes||50}">${esc(item.name)}</option>`).join('')}</select></label><label class="field">Día<input type="date" id="slotDate" required min="${localDateKey(new Date())}"></label><div class="field full"><span>Horarios disponibles</span><div id="slotGrid" class="slot-grid"><p class="muted">Elegí profesional y día para ver los horarios.</p></div></div><label class="field">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label><label class="field">Programa<select name="program_id"><option value="">Sin programa</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field">Modalidad<select name="modality"><option value="presencial">Presencial</option><option value="online">Online</option></select></label><label class="field">Motivo<input name="reason"></label><input type="hidden" name="start_at" id="slotStart"><input type="hidden" name="end_at" id="slotEnd"><button class="btn primary full" id="slotSubmit" disabled>Elegí un horario</button></form></section>`;
+  const availability = !canAct || noProfile ? ''
+    : `<section class="panel"><h2>Disponibilidad profesional</h2><form id="availabilityForm" class="form two-cols"><label class="field full">Profesional<select name="professional_id" required>${selectOptions(mySchedule,item=>item.full_name)}</select></label><label class="field">Día<select name="weekday"><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="0">Domingo</option></select></label>${field('start_time','Desde','time',true)}${field('end_time','Hasta','time',true)}${field('effective_from','Vigente desde','date',true)}<button class="btn secondary full">Agregar disponibilidad</button></form><div class="list">${state.availability.map(item=>`<div class="item"><strong>${esc(item.professionals?.full_name||'-')}</strong><span>${['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][item.weekday]} · ${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}</span></div>`).join('') || '<p class="muted">Sin disponibilidad cargada. Sin este paso no se pueden ofrecer turnos.</p>'}</div></section>`;
+  const block = !canAct || noProfile ? ''
+    : `<section class="panel"><h2>Bloquear horario</h2><form id="blockForm" class="form two-cols"><label class="field full">Profesional<select name="professional_id"><option value="">Solo sala</option>${selectOptions(mySchedule,item=>item.full_name)}</select></label><label class="field full">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label>${field('title','Motivo','text',true)}<label class="field">Tipo<select name="block_type"><option value="manual">Bloqueo manual</option><option value="leave">Licencia</option><option value="meeting">Reunión</option><option value="external_busy">Ocupado externo</option></select></label>${field('start_at','Inicio','datetime-local',true)}${field('end_at','Fin','datetime-local',true)}<button class="btn danger full">Bloquear</button></form></section>`;
   const gcal = isAdminRole() ? `<section class="panel"><h2>Google Calendar</h2><p class="panel-note">Cada turno o grupo se publica como “Reservado”, sin datos clínicos. La sincronización corre cada 15 minutos.</p><div class="list">${state.professionals.map(prof=>{const conn=state.calendarConnections.find(item=>item.professional_id===prof.id);const status=conn?tag(conn.status==='connected'?'conectado':conn.status,conn?.status==='connected'?'green':'amber'):tag('sin conectar');return `<div class="item"><strong>${esc(prof.full_name)}</strong><span class="row-actions">${status}<button class="btn small secondary" data-gcal-connect="${prof.id}">${conn?.status==='connected'?'Reconectar':'Conectar'}</button></span></div>`;}).join('')}</div></section>` : '';
   return `<div class="board"><div class="board-main"><section class="panel"><h2>Calendario semanal</h2>${weekCalendar()}</section><section class="panel"><h2>Turnos y estados</h2><p class="panel-note">Los turnos en estado <strong>solicitado</strong> llegaron desde el portal: confirmalos o reprogramalos.</p>${table(['Fecha','Paciente','Profesional','Sala','Estado','Acción'],appointmentRows)}</section><section class="panel"><h2>Bloqueos próximos</h2>${table(['Desde','Hasta','Profesional','Motivo'],state.blocks.map(item=>[dateTime(item.start_at),dateTime(item.end_at),esc(item.professionals?.full_name||item.rooms?.name||'-'),esc(item.title)]))}</section></div><aside class="board-side">${create}${availability}${block}${gcal}</aside></div>`;
 }
@@ -468,7 +550,8 @@ function groupsTab() {
     return [dateTime(item.start_at),`<button class="link-btn" data-group-open="${item.id}">${esc(item.title)}</button>`,tag(item.session_type==='taller'?'taller':'terapia grupal',item.session_type==='taller'?'amber':'green'),esc(item.professionals?.full_name||'-'),`<span class="${full?'cap-full':''}">${enrolled}/${item.capacity}</span>`,tag(item.open_enrollment?'portal abierto':'solo equipo'),tag(item.status)];
   });
   const detail = groupDetail();
-  const form = canSchedule() ? `<section class="panel"><h2>Publicar taller o grupo</h2><form id="groupForm" class="form two-cols"><label class="field">Tipo<select name="session_type"><option value="taller">Taller</option><option value="terapia_grupal">Terapia grupal</option></select></label>${field('title','Título','text',true)}<label class="field full">Descripción<textarea name="description" rows="3" placeholder="Se muestra en el portal si el espacio está abierto."></textarea></label><label class="field full">Profesional a cargo<select name="professional_id" required>${selectOptions(state.professionals,item=>item.full_name)}</select></label><label class="field">Programa<select name="program_id"><option value="">Sin programa</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label>${field('capacity','Cupo','number',true,'min="1" max="200" value="12"')}<label class="field">Modalidad<select name="modality"><option value="presencial">Presencial</option><option value="online">Online</option></select></label>${field('date','Día','date',true,`min="${localDateKey(new Date())}"`)}${field('start_time','Desde','time',true)}${field('end_time','Hasta','time',true)}<label class="field inline full"><input type="checkbox" name="open_enrollment" checked> Abierto en el portal (las personas pueden inscribirse solas)</label><button class="btn primary full">Publicar espacio</button></form></section>` : '';
+  const mySchedule = schedulableProfessionals();
+  const form = (canSchedule() && mySchedule.length) ? `<section class="panel"><h2>Publicar taller o grupo</h2><form id="groupForm" class="form two-cols"><label class="field">Tipo<select name="session_type"><option value="taller">Taller</option><option value="terapia_grupal">Terapia grupal</option></select></label>${field('title','Título','text',true)}<label class="field full">Descripción<textarea name="description" rows="3" placeholder="Se muestra en el portal si el espacio está abierto."></textarea></label><label class="field full">Profesional a cargo<select name="professional_id" required>${selectOptions(mySchedule,item=>item.full_name)}</select></label><label class="field">Programa<select name="program_id"><option value="">Sin programa</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field">Sala<select name="room_id"><option value="">Sin sala</option>${selectOptions(state.rooms,item=>item.name)}</select></label>${field('capacity','Cupo','number',true,'min="1" max="200" value="12"')}<label class="field">Modalidad<select name="modality"><option value="presencial">Presencial</option><option value="online">Online</option></select></label>${field('date','Día','date',true,`min="${localDateKey(new Date())}"`)}${field('start_time','Desde','time',true)}${field('end_time','Hasta','time',true)}<label class="field inline full"><input type="checkbox" name="open_enrollment" checked> Abierto en el portal (las personas pueden inscribirse solas)</label><button class="btn primary full">Publicar espacio</button></form></section>` : '';
   return `<div class="board"><div class="board-main"><section class="panel"><h2>Talleres y terapia grupal <span class="pill">${upcoming.length}</span></h2><p class="panel-note">Tocá el nombre de un espacio para ver inscriptos, sumar participantes y marcar asistencia.</p>${table(['Fecha','Espacio','Tipo','Profesional','Cupo','Inscripción','Estado'],rows)}</section>${detail}</div><aside class="board-side">${form}</aside></div>`;
 }
 function groupDetail(){
@@ -478,21 +561,22 @@ function groupDetail(){
   const enrollments = state.groupEnrollments.filter(item=>item.session_id===group.id && item.status!=='cancelado');
   const enrolledIds = new Set(enrollments.map(item=>item.patient_id));
   const candidates = scopedPatients().filter(item=>!enrolledIds.has(item.id));
-  const rows = enrollments.map(item=>[esc(name(item.patients)),tag(item.status,item.status==='asistio'?'green':item.status==='ausente'?'red':''),esc(item.enrolled_via==='portal'?'Portal':'Equipo'),`<div class="row-actions"><button class="btn small secondary" data-attendance="asistio" data-id="${item.id}">Asistió</button><button class="btn small secondary" data-attendance="ausente" data-id="${item.id}">Ausente</button><button class="btn small danger" data-unenroll="${item.id}">Quitar</button></div>`]);
+  const rows = enrollments.map(item=>[esc(name(item.patients)),tag(item.status,item.status==='asistio'?'green':item.status==='ausente'?'red':''),esc(item.enrolled_via==='portal'?'Portal':'Equipo'),canSchedule()?`<div class="row-actions"><button class="btn small secondary" data-attendance="asistio" data-id="${item.id}">Asistió</button><button class="btn small secondary" data-attendance="ausente" data-id="${item.id}">Ausente</button><button class="btn small danger" data-unenroll="${item.id}">Quitar</button></div>`:'<span class="muted">solo consulta</span>']);
   const actions = canSchedule() ? `<div class="row-actions" style="margin-top:10px"><button class="btn small secondary" data-group-status="realizado" data-id="${group.id}">Marcar realizada</button><button class="btn small danger" data-group-status="cancelado" data-id="${group.id}">Cancelar sesión</button></div>` : '';
   const enrollForm = canSchedule() ? `<form id="enrollForm" class="form inline-form" data-session="${group.id}"><select name="patient_id" required>${selectOptions(candidates,name)}</select><button class="btn secondary">Inscribir</button></form>` : '';
   return `<section class="panel highlight"><h2>${esc(group.title)} <span class="pill">${groupCount(group.id)}/${group.capacity}</span></h2><p class="muted">${esc(group.description||'')}</p><p class="muted">${dateTime(group.start_at)} a ${timeShort(group.end_at)} · ${esc(group.professionals?.full_name||'-')} · ${esc(group.rooms?.name||'Sin sala')} · ${group.open_enrollment?'Inscripción abierta en el portal':'Inscripción por el equipo'}</p>${actions}<h3 style="margin:14px 0 6px">Participantes</h3>${table(['Paciente','Estado','Vía','Acción'],rows)}${enrollForm}</section>`;
 }
 
 function clinicalTab() {
-  const form = `<section class="panel"><h2>Nueva evolución</h2><form id="clinicalForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Profesional<select name="professional_id"><option value="">Mi profesional asociado</option>${selectOptions(state.professionals,item=>item.full_name)}</select></label><label class="field">Tipo<input name="entry_type" value="evolucion"></label><label class="field">Estado<select name="status"><option value="draft">Borrador</option><option value="signed">Firmar y cerrar</option></select></label>${field('title','Título','text',true)}<label class="field full">Contenido<textarea name="body" rows="9" required></textarea></label><button class="btn primary full">Guardar</button></form></section>`;
+  if (!canAccessClinical()) return noPermissionPanel('Historia clínica','Tu rol no accede a la historia clínica. Es una restricción de confidencialidad aplicada por el propio sistema.');
+  const form = `<section class="panel"><h2>Nueva evolución</h2><form id="clinicalForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Profesional<select name="professional_id"><option value="">Mi profesional asociado</option>${selectOptions(isClinicalRole()?schedulableProfessionals():state.professionals,item=>item.full_name)}</select></label><label class="field">Tipo<input name="entry_type" value="evolucion"></label><label class="field">Estado<select name="status"><option value="draft">Borrador</option><option value="signed">Firmar y cerrar</option></select></label>${field('title','Título','text',true)}<label class="field full">Contenido<textarea name="body" rows="9" required></textarea></label><button class="btn primary full">Guardar</button></form></section>`;
   return `<div class="board"><div class="board-main"><section class="panel"><h2>Registros clínicos recientes</h2><p class="panel-note">Los registros firmados no se editan: quedan protegidos y se corrigen mediante una rectificación.</p>${table(['Fecha','Paciente','Título','Estado'],state.clinical.map(item=>[dateTime(item.created_at),esc(name(item.patients)),esc(item.title),tag(item.status)]))}</section></div><aside class="board-side">${form}</aside></div>`;
 }
 function documentsTab() {
   const scopeNote = isClinicalRole() ? '<p class="panel-note">Solo aparecen tus pacientes asignados o con turnos con vos: el sistema protege la confidencialidad del resto.</p>' : '';
   const upload = canManageDocuments() ? `<section class="panel"><h2>Cargar documento interno</h2>${scopeNote}<form id="documentForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Tipo<select name="document_type_id"><option value="">Sin tipo</option>${selectOptions(state.documentTypes,item=>item.name)}</select></label>${field('title','Título','text',true)}<label class="field">Visibilidad<select name="visibility"><option value="private_administrative">Administrativo</option><option value="private_clinical">Clínico</option><option value="internal_direction">Dirección</option></select></label><label class="field full">Archivo (PDF o imagen, hasta 10 MB)<input name="file" type="file" accept=".pdf,image/png,image/jpeg,image/webp"></label><button class="btn primary full">Guardar documento</button></form></section>` : '';
   const request = canManageDocuments() ? `<section class="panel"><h2>Solicitar documentación</h2><form id="requirementForm" class="form two-cols"><label class="field full">Paciente<select name="patient_id" required>${selectOptions(scopedPatients(),name)}</select></label><label class="field full">Tipo<select name="document_type_id"><option value="">Otro</option>${selectOptions(state.documentTypes,item=>item.name)}</select></label>${field('title','Documento requerido','text',true)}${field('due_date','Vencimiento','date')}<label class="field full">Indicaciones<textarea name="instructions" rows="3"></textarea></label><label class="field inline"><input type="checkbox" name="allow_patient" checked> Puede subir paciente</label><label class="field inline"><input type="checkbox" name="allow_family" checked> Puede subir familiar</label><button class="btn secondary full">Solicitar en portal</button></form></section>` : '';
-  const docs = state.documents.map(item=>[esc(name(item.patients)),esc(item.title),esc(item.document_types?.name||'-'),tag(item.status),`<button class="btn small secondary" data-release-doc="${item.id}" data-patient="${item.patient_id}">Liberar al paciente</button>`]);
+  const docs = state.documents.map(item=>[esc(name(item.patients)),esc(item.title),esc(item.document_types?.name||'-'),tag(item.status),canManageDocuments()?`<button class="btn small secondary" data-release-doc="${item.id}" data-patient="${item.patient_id}">Liberar al paciente</button>`:'-']);
   const requirements = state.requirements.map(item=>[esc(name(item.patients)),esc(item.title),item.due_date||'-',tag(item.status)]);
   const submissions = state.submissions.map(item=>[esc(name(item.patients)),esc(item.document_requirements?.title||'-'),dateTime(item.created_at),tag(item.status),item.status==='submitted'?`<div class="row-actions"><button class="btn small primary" data-review="approved" data-id="${item.id}">Aprobar</button><button class="btn small danger" data-review="rejected" data-id="${item.id}">Rechazar</button></div>`:'-']);
   const main=`<section class="panel"><h2>Documentos del legajo</h2>${table(['Paciente','Documento','Tipo','Estado','Portal'],docs)}</section><section class="panel"><h2>Solicitudes pendientes</h2>${table(['Paciente','Documento','Vence','Estado'],requirements)}</section><section class="panel"><h2>Archivos recibidos desde el portal</h2>${table(['Paciente','Solicitud','Recibido','Estado','Acción'],submissions)}</section>`;
@@ -506,8 +590,12 @@ function programsTab() {
 }
 function accessTab() {
   if (!isAdmin()) return '<section class="panel"><p class="muted">No posee permisos para gestionar accesos.</p></section>';
-  const users = state.profiles.map(item=>[esc(item.full_name),esc(item.email),esc(roleName(item.role_code)),tag(item.active?'activo':'inactivo',item.active?'green':'red'),`<div class="row-actions"><button class="btn small secondary" data-toggle-user="${item.id}" data-active="${item.active?'false':'true'}">${item.active?'Desactivar':'Activar'}</button><button class="btn small secondary" data-reset-user="${item.id}">Restablecer</button></div>`]);
-  return `<div class="board"><div class="board-main"><section class="panel"><h2>Usuarios y credenciales <span class="pill">${state.profiles.length}</span></h2>${table(['Nombre','Email','Rol','Estado','Acción'],users)}</section></div><aside class="board-side"><section class="panel"><h2>Crear acceso seguro</h2><p class="panel-note">Paciente y familiar son cuentas de portal; el familiar requiere un contacto autorizado. Nunca puede recibir un rol de auditoría.</p><form id="accessForm" class="form two-cols"><label class="field">Tipo<select name="kind" id="accessKind"><option value="patient">Paciente</option><option value="family">Familiar autorizado</option><option value="professional">Profesional clínico</option><option value="internal">Administración interna</option></select></label><div class="field" id="accessRoleWrap"></div><div class="field full" id="accessLinkWrap"></div>${field('full_name','Nombre visible','text',true)}${field('email','Email','email',true)}${field('password','Contraseña temporal','password',true)}<small class="field full">Mínimo 12 caracteres, con mayúscula, minúscula y número. El acceso se crea nuevo: no se reasignan cuentas existentes.</small><button class="btn primary full">Crear acceso</button></form></section></aside></div>`;
+  // canManageAccess() del backend: activar, desactivar y restablecer
+  // contraseñas queda reservado a Dirección; Coordinación clínica solo
+  // puede crear cuentas de pacientes, familias y equipo clínico.
+  const canEditAccounts = isAdminRole();
+  const users = state.profiles.map(item=>[esc(item.full_name),esc(item.email),esc(roleName(item.role_code)),tag(item.active?'activo':'inactivo',item.active?'green':'red'),canEditAccounts?`<div class="row-actions"><button class="btn small secondary" data-toggle-user="${item.id}" data-active="${item.active?'false':'true'}">${item.active?'Desactivar':'Activar'}</button><button class="btn small secondary" data-reset-user="${item.id}">Restablecer</button></div>`:'<span class="muted">solo Dirección</span>']);
+  return `<div class="board"><div class="board-main"><section class="panel"><h2>Usuarios y credenciales <span class="pill">${state.profiles.length}</span></h2>${table(['Nombre','Email','Rol','Estado','Acción'],users)}</section></div><aside class="board-side"><section class="panel"><h2>Crear acceso seguro</h2><p class="panel-note">Paciente y familiar son cuentas de portal; el familiar requiere un contacto autorizado. Nunca puede recibir un rol de auditoría.</p><form id="accessForm" class="form two-cols"><label class="field">Tipo<select name="kind" id="accessKind"><option value="patient">Paciente</option><option value="family">Familiar autorizado</option><option value="professional">Profesional clínico</option>${isAdminRole()?'<option value="internal">Administración interna</option>':''}</select></label><div class="field" id="accessRoleWrap"></div><div class="field full" id="accessLinkWrap"></div>${field('full_name','Nombre visible','text',true)}${field('email','Email','email',true)}${field('password','Contraseña temporal','password',true)}<small class="field full">Mínimo 12 caracteres, con mayúscula, minúscula y número. El acceso se crea nuevo: no se reasignan cuentas existentes.</small><button class="btn primary full">Crear acceso</button></form></section></aside></div>`;
 }
 function financeTab() {
   if (!canFinance()) return '<section class="panel"><p class="muted">No posee permisos de finanzas.</p></section>';
@@ -518,8 +606,46 @@ function communicationsTab() {
   if (!canCommunicate()) return '<section class="panel"><p class="muted">No posee permisos para enviar comunicados.</p></section>';
   return `<div class="board wide" style="max-width:820px"><section class="panel"><h2>Nuevo comunicado institucional</h2><p class="muted">No incluir información clínica sensible. Los correos quedan en cola hasta configurar un proveedor de envío.</p><form id="communicationForm" class="form two-cols"><label class="field">Audiencia<select name="audience"><option value="professionals">Profesionales</option><option value="patients">Pacientes</option><option value="families">Familiares autorizados</option><option value="patient_network">Paciente y familia</option></select></label><label class="field">Canal<select name="channel"><option value="in_app">Portal / sistema</option><option value="email">Email (cola preparada)</option></select></label><label class="field full">Paciente específico (opcional; obligatorio para red)<select name="patient_id"><option value="">Toda la audiencia</option>${selectOptions(state.patients,name)}</select></label>${field('title','Asunto','text',true)}<label class="field full">Mensaje<textarea name="body" rows="8" required></textarea></label><button class="btn primary full">Enviar comunicado</button></form></section></div>`;
 }
+
+// Etiquetas legibles para la trazabilidad: el código técnico queda visible
+// como referencia, pero la fila se lee sin conocer el esquema.
+const AUDIT_LABELS = {
+  APPOINTMENT_CREATED:'Turno agendado',
+  APPOINTMENT_REQUESTED_PORTAL:'Turno solicitado desde el portal',
+  APPOINTMENT_STATUS_CHANGED:'Cambio de estado de un turno',
+  GROUP_ENROLLMENT:'Inscripción a taller o grupo',
+  GROUP_ENROLLMENT_CANCELLED:'Baja de taller o grupo',
+  GROUP_SESSION_STATUS:'Cambio de estado de un espacio grupal',
+  CLINICAL_ENTRY_SIGNED:'Evolución clínica firmada',
+  DOCUMENT_UPLOADED:'Documento cargado al legajo',
+  DOCUMENT_DOWNLOADED:'Documento descargado',
+  DOCUMENT_RELEASED_TO_PORTAL:'Documento liberado al portal',
+  PORTAL_DOCUMENT_APPROVED:'Documento del portal aprobado',
+  PORTAL_DOCUMENT_REJECTED:'Documento del portal rechazado',
+  COMMUNICATION_SENT:'Comunicado enviado',
+  PAYMENT_REGISTERED:'Pago registrado',
+  PATIENT_CREATED:'Alta de paciente',
+  USER_PROVISIONED:'Acceso de usuario creado',
+  USER_ACCESS_CREATED:'Acceso de usuario creado',
+  CALENDAR_CONNECTED:'Google Calendar conectado',
+  BOOTSTRAP_FIRST_ADMIN:'Alta del primer administrador',
+  BOOTSTRAP_ADMIN_PROVISIONED:'Administrador aprovisionado',
+  DEMO_RESET:'Demostración restaurada',
+  DEMO_USERS_READY:'Cuentas de demostración preparadas'
+};
+function auditAction(code){
+  const label = AUDIT_LABELS[code];
+  return label
+    ? `<strong>${esc(label)}</strong><small class="audit-code">${esc(code)}</small>`
+    : `<strong>${esc(code)}</strong>`;
+}
+function auditActor(item){
+  if (item.actor_role) return esc(roleName(item.actor_role));
+  return '<span class="muted">sistema</span>';
+}
+
 function auditTab() {
-  return `<div class="board wide"><section class="panel"><h2>Trazabilidad de la operación</h2><p class="panel-note">Cada acción queda registrada con su responsable, rol y nivel de riesgo. Auditoría no accede a la historia clínica.</p>${table(['Fecha','Acción','Entidad','Rol','Riesgo'],state.audit.map(item=>[dateTime(item.created_at),esc(item.action),esc(item.entity_table||'-'),esc(item.actor_role||'-'),tag(item.risk_level)]))}</section></div>`;
+  return `<div class="board wide"><section class="panel"><h2>Trazabilidad de la operación</h2><p class="panel-note">Cada acción queda registrada con su responsable, rol y nivel de riesgo. Auditoría no accede a la historia clínica.</p>${table(['Fecha','Acción','Entidad','Rol','Riesgo'],state.audit.map(item=>[dateTime(item.created_at),auditAction(item.action),esc(item.entity_table||'-'),auditActor(item),tag(item.risk_level,item.risk_level==='sensitive'?'amber':'')]))}</section></div>`;
 }
 
 function bindLogin() {
@@ -578,7 +704,7 @@ async function refreshSlots() {
 
 function bindTab() {
   document.getElementById('patientForm')?.addEventListener('submit',async event=>{
-    event.preventDefault(); const form=event.currentTarget; const payload=pick(form,['first_name','last_name','document_number','birth_date','phone','email','admission_status','risk_level']); payload.admission_date=new Date().toISOString().slice(0,10);
+    event.preventDefault(); const form=event.currentTarget; const payload=pick(form,['first_name','last_name','document_number','birth_date','phone','email','admission_status','risk_level']); payload.admission_date=orgDateKey(new Date());
     const {data,error}=await sb.from('patients').insert(payload).select().single(); if(error) return notice(friendly(error),'error');
     const formData=new FormData(form); const programId=formData.get('program_id'); const professionalId=formData.get('professional_id');
     if(programId) await sb.from('patient_programs').insert({patient_id:data.id,program_id:programId,responsible_professional_id:professionalId||null,current_stage:'Primer contacto',goals:'Acompañamiento inicial.'});
@@ -597,7 +723,7 @@ function bindTab() {
     await load();render();notice('Turno confirmado. Quedó protegido contra superposiciones y visible en el portal de la persona.');
   });
   document.getElementById('availabilityForm')?.addEventListener('submit',async event=>{event.preventDefault();try{await save('professional_availability_rules',{...pick(event.currentTarget,['professional_id','weekday','start_time','end_time','effective_from']),active:true},'Disponibilidad agregada: esos horarios ya se ofrecen al agendar.');}catch(error){notice(friendly(error),'error');}});
-  document.getElementById('blockForm')?.addEventListener('submit',async event=>{event.preventDefault();const data=pick(event.currentTarget,['professional_id','room_id','title','block_type','start_at','end_at']);data.professional_id=data.professional_id||null;data.room_id=data.room_id||null;if(!data.professional_id&&!data.room_id)return notice('Seleccione profesional o sala.','error');try{await save('calendar_blocks',{...data,active:true},'Horario bloqueado: dejó de ofrecerse en la agenda.');}catch(error){notice(friendly(error),'error');}});
+  document.getElementById('blockForm')?.addEventListener('submit',async event=>{event.preventDefault();const data=pick(event.currentTarget,['professional_id','room_id','title','block_type','start_at','end_at']);data.professional_id=data.professional_id||null;data.room_id=data.room_id||null;if(!data.professional_id&&!data.room_id)return notice('Seleccione profesional o sala.','error');const toOrg=v=>{const [d,t]=String(v||'').split('T');return d&&t?orgIso(d,t.slice(0,5)):v;};data.start_at=toOrg(data.start_at);data.end_at=toOrg(data.end_at);if(new Date(data.end_at)<=new Date(data.start_at))return notice('El fin del bloqueo debe ser posterior al inicio.','error');try{await save('calendar_blocks',{...data,active:true},'Horario bloqueado: dejó de ofrecerse en la agenda.');}catch(error){notice(friendly(error),'error');}});
   document.querySelectorAll('[data-appointment-status]').forEach(button=>button.addEventListener('click',async()=>{const {error}=await sb.rpc('update_appointment_status_secure',{p_appointment_id:button.dataset.id,p_status:button.dataset.appointmentStatus,p_attendance_status:null,p_reason:null});if(error)return notice(friendly(error),'error');await load();render();notice('Estado actualizado.');}));
 
   // Grupos y talleres
@@ -607,7 +733,7 @@ function bindTab() {
     const date=fd.get('date'); const startTime=fd.get('start_time'); const endTime=fd.get('end_time');
     if(!date||!startTime||!endTime) return notice('Completá día y horario.','error');
     if(endTime<=startTime) return notice('La hora de fin debe ser posterior a la de inicio.','error');
-    const payload={session_type:fd.get('session_type'),title:fd.get('title'),description:fd.get('description')||null,professional_id:fd.get('professional_id'),program_id:fd.get('program_id')||null,room_id:fd.get('room_id')||null,capacity:Number(fd.get('capacity')||12),modality:fd.get('modality'),open_enrollment:Boolean(fd.get('open_enrollment')),start_at:new Date(`${date}T${startTime}`).toISOString(),end_at:new Date(`${date}T${endTime}`).toISOString(),status:'programado'};
+    const payload={session_type:fd.get('session_type'),title:fd.get('title'),description:fd.get('description')||null,professional_id:fd.get('professional_id'),program_id:fd.get('program_id')||null,room_id:fd.get('room_id')||null,capacity:Number(fd.get('capacity')||12),modality:fd.get('modality'),open_enrollment:Boolean(fd.get('open_enrollment')),start_at:orgIso(date,startTime),end_at:orgIso(date,endTime),status:'programado'};
     const {data,error}=await sb.from('group_sessions').insert(payload).select().single();
     if(error)return notice(friendly(error),'error');
     selectedGroupId=data.id; await load();render();notice(payload.open_enrollment?'Espacio publicado: ya aparece en el portal para inscribirse.':'Espacio creado. Inscribí a los participantes desde el detalle.');
@@ -663,7 +789,7 @@ function bindAccess() {
     if(value==='patient'){role.innerHTML='Rol<input value="Paciente" disabled>';linked.innerHTML=`Vincular paciente<select name="patient_id" required>${selectOptions(state.patients,name)}</select>`;}
     if(value==='family'){role.innerHTML='Rol<input value="Familiar autorizado (portal)" disabled>';linked.innerHTML=`Paciente<select name="family_patient_id" id="familyPatient" required>${selectOptions(state.patients,name)}</select><div id="familyContactWrap"></div><label class="field inline"><input type="checkbox" name="can_view_documents"> Ver documentos liberados</label><label class="field inline"><input type="checkbox" name="can_upload_documents"> Cargar documentos solicitados</label>`;syncFamilyContacts();}
     if(value==='professional'){role.innerHTML=`Rol clínico<select name="role_code">${roles.filter(row=>['professional','medical','psychologist','social_worker','therapeutic_operator'].includes(row[0])).map(row=>`<option value="${row[0]}">${row[1]}</option>`).join('')}</select>`;linked.innerHTML=`Vincular profesional<select name="professional_id" required>${selectOptions(state.professionals,item=>item.full_name)}</select>`;}
-    if(value==='internal'){role.innerHTML=`Rol<select name="role_code">${roles.filter(row=>['admission','finance','communications','direction','auditor'].includes(row[0])).map(row=>`<option value="${row[0]}">${row[1]}</option>`).join('')}</select>`;linked.innerHTML='Cuenta interna sin ficha clínica';}
+    if(value==='internal'){const internalRoles=profile?.role_code==='super_admin'?['admission','finance','communications','direction','auditor']:['admission','finance','communications','direction'];role.innerHTML=`Rol<select name="role_code">${roles.filter(row=>internalRoles.includes(row[0])).map(row=>`<option value="${row[0]}">${row[1]}</option>`).join('')}</select>`;linked.innerHTML='Cuenta interna sin ficha clínica';}
   };
   const syncFamilyContacts=()=>{const patient=document.getElementById('familyPatient');const wrap=document.getElementById('familyContactWrap');if(!patient||!wrap)return;const contacts=state.contacts.filter(item=>item.patient_id===patient.value&&item.is_authorized&&item.can_access_portal);wrap.innerHTML=`Contacto autorizado<select name="patient_contact_id" required>${selectOptions(contacts,item=>`${item.full_name} · ${item.relationship||'referente'}`)}</select>`;patient.addEventListener('change',syncFamilyContacts,{once:true});};
   kind.addEventListener('change',sync);sync();
