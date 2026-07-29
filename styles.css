@@ -777,8 +777,8 @@ h3 {
 }
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.4fr .75fr .75fr;
-  gap: 44px;
+  grid-template-columns: 1.3fr .7fr .55fr .85fr;
+  gap: 40px;
 }
 .footer-brand img { background: #fff; }
 .site-footer strong { color: #fff; display: block; margin-bottom: 12px; }
@@ -908,3 +908,83 @@ h3 {
   .bank-row strong { text-align: left; }
   .framework-card { padding: 22px; }
 }
+
+/* ============================================================
+   Dónde estamos — dirección, teléfono y mapa compacto
+   ============================================================ */
+.visit-card {
+  margin-top: 24px;
+  background: var(--blanco);
+  border: 1px solid var(--linea);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: 0 12px 34px rgba(11, 47, 102, 0.08);
+}
+.visit-info { padding: 20px 22px 16px; }
+.visit-address {
+  font-style: normal;
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 12px;
+}
+.visit-address strong { font-size: 20px; color: var(--azul); letter-spacing: -0.01em; }
+.visit-address span { color: var(--muted); font-size: 15px; }
+.visit-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  color: var(--azul);
+  text-decoration: none;
+  background: var(--celeste);
+  border-radius: 999px;
+  padding: 9px 16px 9px 13px;
+  font-variant-numeric: tabular-nums;
+  transition: background .15s ease, color .15s ease;
+}
+.visit-phone svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.visit-phone:hover { background: var(--azul); color: #fff; }
+
+/* El mapa se mantiene chico a propósito: es una referencia, no la sección. */
+.visit-map { position: relative; height: 200px; border-top: 1px solid var(--linea); }
+.visit-map iframe { width: 100%; height: 100%; border: 0; display: block; filter: saturate(.92); }
+/* El enlace cubre el mapa entero: cualquier toque abre Cómo llegar y el
+   iframe deja de robarse el scroll en pantallas táctiles. */
+.visit-map-link {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 14px;
+  text-decoration: none;
+  background: linear-gradient(180deg, rgba(11,47,102,0) 55%, rgba(11,47,102,.28));
+  transition: background .18s ease;
+}
+.visit-map-hint {
+  background: var(--blanco);
+  color: var(--azul);
+  font-weight: 750;
+  font-size: 14px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(11, 47, 102, 0.24);
+  transition: transform .18s ease;
+}
+.visit-map-link:hover { background: linear-gradient(180deg, rgba(11,47,102,.06) 40%, rgba(11,47,102,.42)); }
+.visit-map-link:hover .visit-map-hint { transform: translateY(-2px); }
+.visit-map-link:focus-visible { outline: 3px solid var(--magenta); outline-offset: -3px; }
+
+@media (max-width: 860px) {
+  .visit-map { height: 168px; }
+  .visit-address strong { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .visit-map-link, .visit-map-hint, .visit-phone { transition: none; }
+}
+
+/* Cuatro columnas en el pie necesitan un paso intermedio antes del móvil. */
+@media (max-width: 1040px) {
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+.site-footer a { overflow-wrap: anywhere; }

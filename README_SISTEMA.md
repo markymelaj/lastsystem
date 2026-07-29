@@ -188,3 +188,60 @@ confirmar.
 **Pestaña Profesionales:** para el equipo clínico ahora abre con *Mi ficha* (personas a
 cargo, turnos y grupos próximos, disponibilidad propia con aviso si no está cargada) y
 debajo el directorio del equipo. Para administración sigue siendo el directorio y el alta.
+
+## Revisión 2.4 — mapa en la web, agenda desde el alta de profesionales
+
+**Web pública.** La sección Contacto ahora incluye un bloque "Dónde estamos" con la
+dirección (Alem 152, oficina, Ciudad de Mendoza), el teléfono como enlace tocable
+(261 747-9079) y un mapa compacto de 200 px. Todo el mapa es un enlace: al tocarlo abre
+"Cómo llegar" en Google Maps. El enlace se superpone al iframe a propósito — además de
+hacer tocable todo el bloque, evita que el mapa se robe el scroll en el celular. La misma
+información quedó en el pie del sitio.
+
+> El mapa se centra por búsqueda de dirección, no por coordenadas fijas. Si el marcador no
+> cae exacto, cambiá el texto de la consulta en las tres apariciones de
+> `Alem%20152%2C%20Ciudad%20de%20Mendoza%2C%20Mendoza%2C%20Argentina` dentro de
+> `index.html` (dos en la sección Contacto, una en el pie).
+
+**PENDIENTE — WhatsApp.** `script.js` sigue con el número de ejemplo
+`5491100000000`. Todos los botones de WhatsApp del sitio apuntan a un número inexistente.
+Reemplazar la constante `WHATSAPP_NUMBER` por el número real en formato internacional sin
+signos (por ejemplo, `5492617479079` para un celular de Mendoza).
+
+**Sistema: disponibilidad al dar de alta al equipo.** El paso que más se olvidaba —cargar
+la disponibilidad, sin la cual no se pueden asignar turnos— ahora está donde corresponde:
+
+- El listado de Profesionales suma una columna **Disponibilidad** que muestra quién tiene
+  la agenda cargada y marca en ámbar a quienes no.
+- El botón **Cargar agenda** abre el panel de esa persona, con carga rápida
+  (mañana 09–13, tarde 14–19 o jornada completa, de lunes a viernes en un clic), alta de
+  franjas puntuales y baja de las cargadas.
+- Al guardar un profesional nuevo, el sistema abre su agenda automáticamente y lo indica
+  en el mensaje de confirmación.
+- El equipo clínico ve en su propia ficha si tiene disponibilidad cargada, con acceso
+  directo a definirla.
+
+**Manual integrado.** Dos secciones nuevas al inicio del manual de administración:
+*Dar de alta a una persona (paso a paso)*, con los siete pasos y qué significa cada estado
+de admisión, y *Alta del equipo y su agenda*. El formulario de alta de paciente además
+explica en contexto que solo nombre y apellido son obligatorios y por qué importa asignar
+el profesional responsable.
+
+## Revisión 2.5 — WhatsApp real y guía operativa en PDF
+
+**WhatsApp.** `WHATSAPP_NUMBER` en `script.js` quedó con el número real
+(`5492617479079`, o sea +54 9 261 747-9079). También se corrigieron los cuatro `href` de
+respaldo dentro de `index.html`, que quedaban con el número de ejemplo y se usan si el JS
+no llega a ejecutarse.
+
+**Guía operativa (PDF).** Nueva en `assets/guia-operativa-senderos.pdf`, cinco páginas:
+quién puede hacer cada cosa, cargar la agenda de un profesional, crear programas, dar de
+alta accesos de paciente y de familiar, y una tabla de "si algo no funciona" con las causas
+reales de cada mensaje. Enlazada desde el sistema (panel de guía y manual integrado).
+
+> **Se retiró el enlace al PDF anterior desde el portal de pacientes.**
+> `assets/guia-senderos.pdf` es el documento de la demostración e incluye la lista de
+> usuarios y contraseñas de prueba: no corresponde entregárselo a personas ni familias en
+> uso real. La guía dentro del portal ya cubre lo que necesitan. El archivo se conserva por
+> si sirve para presentaciones internas; si el sistema pasa a producción definitiva,
+> conviene borrarlo del repositorio.

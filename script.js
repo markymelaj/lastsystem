@@ -42,7 +42,7 @@ document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
 // Ajustar datos antes de publicar en producción.
 // Reemplazar el número por el WhatsApp oficial de la fundación (Argentina), sin signos ni espacios.
 // Formato: 54 9 + código de área + número (ej: 5491155551234).
-const WHATSAPP_NUMBER = '5491100000000'; // PLACEHOLDER - reemplazar por número real
+const WHATSAPP_NUMBER = '5492617479079'; // +54 9 261 747-9079
 const WHATSAPP_MESSAGE = encodeURIComponent('Hola, quisiera pedir orientación inicial a Fundación Senderos de Libertad.');
 document.querySelectorAll('[data-whatsapp-link]').forEach((link) => {
   link.href = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;

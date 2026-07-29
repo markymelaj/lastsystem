@@ -67,7 +67,7 @@ function helpPanelHtml(){
   return `<div class="help-overlay" data-help-overlay></div><aside class="help-panel" id="helpPanel" aria-label="Guía del portal">
     <div class="help-head"><div><p class="eyebrow">Guía del portal</p><h2>${esc(g.title)}</h2></div><button class="help-close" data-help-close aria-label="Cerrar">&times;</button></div>
     <div class="help-body"><p class="help-intro">${esc(g.intro)}</p>${steps}</div>
-    <div class="help-foot"><a class="btn secondary full" href="/assets/guia-senderos.pdf" target="_blank" rel="noopener">Descargar mini guía (PDF)</a><p class="help-cred">Fundación Senderos de Libertad</p></div>
+    <div class="help-foot"><p class="help-cred">Fundación Senderos de Libertad</p></div>
   </aside>`;
 }
 function welcomeModalHtml(){

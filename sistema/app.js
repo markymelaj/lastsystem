@@ -2,6 +2,7 @@ const app = document.getElementById('app');
 let sb; let session; let profile; let config = {}; let activeTab = 'dashboard';
 let state = emptyState();
 let selectedGroupId = null;
+let selectedProfessionalId = null;
 
 const roles = [
   ['direction','Dirección'], ['clinical_coordination','Coordinación clínica'],
@@ -157,7 +158,7 @@ const GUIDES = {
     steps:[
       ['Mirá el tablero','En Inicio ves de un vistazo personas activas, próximos turnos, grupos y talleres, documentación pendiente y cargos abiertos.'],
       ['Dá de alta a una persona','En Pacientes cargás la ficha, asignás programa y profesional responsable, y podés registrar al familiar referente.'],
-      ['Sumá al equipo','En Profesionales cargás cada integrante y desde Accesos le creás su cuenta. Recordá cargar su disponibilidad en Agenda para que se le puedan asignar turnos.'],
+      ['Sumá al equipo','En Profesionales cargás cada integrante y, al guardar, el sistema abre su agenda para que le dejes la disponibilidad. Después le creás la cuenta en Accesos.'],
       ['Agenda con horarios reales','Al agendar un turno elegís día y el sistema muestra solo los horarios libres del profesional: descuenta turnos, bloqueos y grupos.'],
       ['Publicá talleres y grupos','En Grupos y talleres creás cada espacio con cupo; los abiertos aparecen en el portal para que las personas se inscriban solas.'],
       ['Consultá el Manual','El botón Manual de uso, abajo a la izquierda, tiene el paso a paso completo de administración y del equipo profesional.']
@@ -183,7 +184,7 @@ const GUIDES = {
   admission:{ title:'Guía para Admisión y recepción',
     intro:'Sos la puerta de entrada: alta de personas, turnos, grupos y documentación.',
     steps:[
-      ['Registrá el ingreso','En Pacientes completás la ficha y sumás al familiar referente.'],
+      ['Registrá el ingreso','En Pacientes completás nombre y apellido, elegís estado y riesgo, asignás programa y profesional responsable, y sumás al familiar referente.'],
       ['Agendá el primer turno','En Agenda elegís profesional, tipo y día; el sistema muestra solo los horarios libres y evita superposiciones.'],
       ['Inscribí a los grupos','En Grupos y talleres anotás a cada persona en los espacios con cupo disponible.'],
       ['Solicitá documentación','En Documentos pedís lo que la persona debe subir por el portal y revisás lo recibido.']
@@ -222,13 +223,32 @@ function guideFor(role){
 // ---------------------------------------------------------------
 const MANUAL = [
   { id:'m-admin', audience:'Administración y Dirección', sections:[
+    { title:'Dar de alta a una persona (paso a paso)', body:[
+      'Quién puede hacerlo: Dirección, Coordinación clínica y Admisión. Si tu rol es otro, el sistema te muestra un aviso en lugar del formulario.',
+      '1. Entrá a la pestaña Pacientes. El formulario de alta está a la derecha (en el celular, más abajo, después del listado).',
+      '2. Completá nombre y apellido: son los únicos datos obligatorios. DNI, fecha de nacimiento, teléfono y email se pueden cargar después editando la ficha.',
+      '3. Elegí el estado de admisión según el momento del proceso: Preingreso (primer contacto, todavía no evaluada), Evaluación (en proceso de admisión), Admitido (ingresó formalmente), En tratamiento (con programa activo) o Seguimiento (etapa de acompañamiento posterior).',
+      '4. Marcá el nivel de riesgo: bajo, medio o alto. Es una señal para el equipo, no un diagnóstico; se puede cambiar en cualquier momento.',
+      '5. Asigná el programa y el profesional responsable. Este paso importa: es lo que le da acceso a la ficha al profesional tratante. Si lo dejás sin asignar, quien acompaña a esa persona no la va a ver en su lista.',
+      '6. Cargá al familiar o referente si lo hay. Marcando "Autorizar portal y comunicaciones" habilitás que después se le pueda crear una cuenta de familiar; sin esa marca, la opción no aparece en Accesos.',
+      '7. Guardá. La persona ya figura en el listado y se le pueden agendar turnos.',
+      'Después del alta, lo habitual es: agendar el primer turno en Agenda, solicitar la documentación en Documentos y, si va a usar el portal, crearle el acceso en Accesos.'
+    ]},
+    { title:'Alta del equipo y su agenda', body:[
+      'El alta de profesionales la hacen Dirección o Coordinación clínica, desde la pestaña Profesionales.',
+      '1. Completá nombre y cargo (obligatorios) y, si corresponde, especialidad, matrícula, email y teléfono.',
+      '2. Al guardar, el sistema abre directamente la agenda de esa persona. Cargale la disponibilidad ahí mismo: es el paso que suele olvidarse y sin él nadie puede asignarle turnos.',
+      '3. Usá la carga rápida si atiende en horarios habituales: "Mañana 09–13", "Tarde 14–19" o la jornada completa cargan de lunes a viernes con un clic. Si tiene horarios particulares, agregá cada franja con el formulario de abajo.',
+      '4. Por último, creale el acceso al sistema en la pestaña Accesos, eligiendo el tipo "Profesional clínico" y vinculándolo a esta ficha.',
+      'En el listado del equipo, la columna Disponibilidad muestra de un vistazo quién tiene la agenda cargada y quién no. Los que dicen "sin agenda" no pueden recibir turnos todavía.'
+    ]},
     { title:'Accesos y cuentas', body:[
       'En Accesos se crea cada cuenta nueva: paciente, familiar autorizado, profesional clínico o administración interna. Las cuentas nunca se reasignan; si alguien deja la institución, se desactiva.',
       'La contraseña temporal debe tener 12 caracteres con mayúscula, minúscula y número. Con "Restablecer" se entrega una nueva contraseña temporal.',
       'El familiar autorizado se vincula a un contacto marcado como autorizado en la ficha del paciente, y se define si puede ver o subir documentos.'
     ]},
     { title:'Agenda y disponibilidad', body:[
-      'Antes de asignar turnos a un profesional, cargá su disponibilidad en Agenda → Disponibilidad profesional (día, franja horaria y desde cuándo rige). Sin disponibilidad, el sistema no ofrece horarios.',
+      'La disponibilidad de cada profesional se carga desde Profesionales → Agenda (recomendado, con carga rápida) o desde Agenda → Disponibilidad profesional. Sin disponibilidad cargada, el sistema no ofrece ningún horario.',
       'Para agendar: elegí paciente, profesional, tipo de turno y día. El calendario muestra solo los horarios libres; los ocupados por turnos, bloqueos o grupos no aparecen.',
       'Los bloqueos (licencias, reuniones, feriados) se cargan en Bloquear horario y sacan esa franja de la oferta de turnos.'
     ]},
@@ -259,7 +279,8 @@ const MANUAL = [
       'Solo ves a las personas que tenés asignadas como responsable o con quienes tenés turnos: la confidencialidad la aplica el propio sistema.'
     ]},
     { title:'Tu disponibilidad', body:[
-      'Cargá en Agenda tus días y franjas de atención. Esa disponibilidad define qué horarios puede ofrecer recepción y qué puede reservar cada persona desde el portal.',
+      'Cargá en Agenda tus días y franjas de atención, o pedile a Dirección que las deje cargadas desde Profesionales. Esa disponibilidad define qué horarios puede ofrecer recepción y qué puede reservar cada persona desde el portal.',
+      'En la pestaña Profesionales, tu ficha te muestra la disponibilidad que tenés cargada y te avisa si está vacía.',
       'Si te tomás licencia o tenés una reunión, cargá un bloqueo: esa franja deja de ofrecerse automáticamente.'
     ]},
     { title:'Agendar un turno', body:[
@@ -282,7 +303,7 @@ function manualHtml(){
   const body = MANUAL.map(group=>`<section class="manual-block"><h3>${esc(group.audience)}</h3>${group.sections.map((section,index)=>`<article id="${group.id}-${index}" class="manual-article"><h4>${esc(section.title)}</h4>${section.body.map(paragraph=>`<p>${esc(paragraph)}</p>`).join('')}</article>`).join('')}</section>`).join('');
   return `<div class="modal-overlay manual-overlay" id="manualModal"><div class="modal manual-modal">
     <div class="modal-top manual-top"><div><p class="eyebrow">Manual de uso integrado</p><h2>Administración y equipo profesional</h2></div><button class="help-close" data-manual-close aria-label="Cerrar">&times;</button></div>
-    <div class="manual-body"><nav class="manual-nav">${nav}<a class="btn secondary full" href="/assets/guia-senderos.pdf" target="_blank" rel="noopener">Mini guía (PDF)</a></nav><div class="manual-content">${body}</div></div>
+    <div class="manual-body"><nav class="manual-nav">${nav}<a class="btn secondary full" href="/assets/guia-operativa-senderos.pdf" target="_blank" rel="noopener">Guía operativa (PDF)</a></nav><div class="manual-content">${body}</div></div>
   </div></div>`;
 }
 function openManual(){
@@ -305,7 +326,7 @@ function helpPanelHtml(){
   return `<div class="help-overlay" data-help-overlay></div><aside class="help-panel" id="helpPanel" aria-label="Guía de uso">
     <div class="help-head"><div><p class="eyebrow">Guía de uso</p><h2>${esc(g.title)}</h2></div><button class="help-close" data-help-close aria-label="Cerrar">&times;</button></div>
     <div class="help-body"><p class="help-intro">${esc(g.intro)}</p>${steps}</div>
-    <div class="help-foot"><button class="btn secondary full" data-manual-open>Abrir el manual completo</button><a class="btn ghost full" href="/assets/guia-senderos.pdf" target="_blank" rel="noopener">Descargar mini guía (PDF)</a>${reset}<p class="help-cred">Sistema de la Fundación Senderos de Libertad</p></div>
+    <div class="help-foot"><button class="btn secondary full" data-manual-open>Abrir el manual completo</button><a class="btn ghost full" href="/assets/guia-operativa-senderos.pdf" target="_blank" rel="noopener">Descargar guía operativa (PDF)</a>${reset}<p class="help-cred">Sistema de la Fundación Senderos de Libertad</p></div>
   </aside>`;
 }
 function welcomeModalHtml(){
@@ -468,20 +489,86 @@ function patientsTab() {
   const rows = state.patients.map(patient => [esc(name(patient)),esc(patient.document_number||'-'),tag(patient.admission_status),tag(patient.risk_level,patient.risk_level==='alto'?'red':''),esc(patient.phone||'-')]);
   const form = !canWriteOperational()
     ? noPermissionPanel('Alta de paciente y referente','El alta de personas la realizan Dirección, Coordinación clínica o Admisión. Desde tu rol podés consultar la información de quienes tenés a cargo.')
-    : `<section class="panel"><h2>Alta de paciente y referente</h2><form id="patientForm" class="form two-cols">${field('first_name','Nombre','text',true)}${field('last_name','Apellido','text',true)}${field('document_number','DNI','text')}${field('birth_date','Nacimiento','date')}${field('phone','Teléfono')}${field('email','Email','email')}<label class="field">Estado<select name="admission_status"><option value="preingreso">Preingreso</option><option value="evaluacion">Evaluación</option><option value="admitido">Admitido</option><option value="en_tratamiento">En tratamiento</option><option value="seguimiento">Seguimiento</option></select></label><label class="field">Riesgo<select name="risk_level"><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></label><label class="field full">Programa<select name="program_id"><option value="">Sin asignar</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field full">Profesional responsable<select name="professional_id"><option value="">Sin asignar</option>${selectOptions(state.professionals,item=>item.full_name)}</select></label><h3 class="field full">Familiar o referente</h3>${field('contact_name','Nombre')}${field('contact_email','Email','email')}${field('contact_phone','Teléfono')}<label class="field">Relación<input name="contact_relationship" placeholder="Madre, tutor, referente"></label><label class="field inline full"><input type="checkbox" name="contact_authorized"> Autorizar portal y comunicaciones para este contacto</label><button class="btn primary full">Guardar paciente</button></form></section>`;
+    : `<section class="panel"><h2>Alta de paciente y referente</h2><p class="panel-note">Solo <strong>nombre y apellido</strong> son obligatorios; el resto se puede completar después. Asignar <strong>programa y profesional responsable</strong> es lo que le da acceso a la ficha al equipo tratante.</p><form id="patientForm" class="form two-cols">${field('first_name','Nombre','text',true)}${field('last_name','Apellido','text',true)}${field('document_number','DNI','text')}${field('birth_date','Nacimiento','date')}${field('phone','Teléfono')}${field('email','Email','email')}<label class="field">Estado<select name="admission_status"><option value="preingreso">Preingreso</option><option value="evaluacion">Evaluación</option><option value="admitido">Admitido</option><option value="en_tratamiento">En tratamiento</option><option value="seguimiento">Seguimiento</option></select></label><label class="field">Riesgo<select name="risk_level"><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></label><label class="field full">Programa<select name="program_id"><option value="">Sin asignar</option>${selectOptions(state.programs,item=>item.name)}</select></label><label class="field full">Profesional responsable<select name="professional_id"><option value="">Sin asignar</option>${selectOptions(state.professionals,item=>item.full_name)}</select><small class="field-hint">Sin responsable asignado, esta persona no aparece en la lista de quien la acompaña.</small></label><h3 class="field full">Familiar o referente</h3>${field('contact_name','Nombre')}${field('contact_email','Email','email')}${field('contact_phone','Teléfono')}<label class="field">Relación<input name="contact_relationship" placeholder="Madre, tutor, referente"></label><label class="field inline full"><input type="checkbox" name="contact_authorized"> Autorizar portal y comunicaciones para este contacto</label><small class="field-hint full">Marcalo si a este familiar se le va a crear una cuenta de portal: sin esta autorización, no aparece como opción en Accesos.</small><button class="btn primary full">Guardar paciente</button></form></section>`;
   return `<div class="board"><div class="board-main"><section class="panel"><h2>Personas acompañadas <span class="pill">${state.patients.length}</span></h2>${table(['Paciente','DNI','Estado','Riesgo','Teléfono'],rows)}</section></div><aside class="board-side">${form}</aside></div>`;
 }
 function professionalsTab() {
-  const rows = state.professionals.map(item => [esc(item.full_name),esc(item.role_title),esc(item.specialty||'-'),esc(item.email||'-')]);
+  const canSchedules = managesAnySchedule();
+  const rows = state.professionals.map(item => {
+    const base = [esc(item.full_name),esc(item.role_title),esc(item.specialty||'-'),esc(item.email||'-')];
+    if (!canSchedules) return base;
+    return [...base, availabilitySummary(item.id),
+      `<button class="btn small secondary" data-prof-agenda="${item.id}">${availabilityFor(item.id).length ? 'Ver agenda' : 'Cargar agenda'}</button>`];
+  });
   const form = isAdmin()
     ? `<section class="panel"><h2>Alta de profesional</h2><form id="professionalForm" class="form two-cols">${field('full_name','Nombre completo','text',true)}${field('role_title','Cargo','text',true)}${field('specialty','Especialidad')}${field('license_number','Matrícula')}${field('email','Email','email')}${field('phone','Teléfono')}<label class="field full">Perfil<textarea name="bio" rows="3"></textarea></label><button class="btn primary full">Guardar profesional</button></form><p class="panel-note">Después del alta: creá su cuenta en <strong>Accesos</strong> y cargá su <strong>disponibilidad</strong> en Agenda para poder asignarle turnos.</p></section>`
     : noPermissionPanel('Alta de profesional','El alta y la edición del equipo las realizan Dirección o Coordinación clínica. Si falta un profesional, pedile el alta a tu coordinación.');
-  const directory = `<section class="panel"><h2>Equipo profesional <span class="pill">${state.professionals.length}</span></h2><p class="panel-note">Directorio de contacto del equipo.</p>${table(['Nombre','Cargo','Especialidad','Email'],rows)}</section>`;
+  const headers = canSchedules
+    ? ['Nombre','Cargo','Especialidad','Email','Disponibilidad','Agenda']
+    : ['Nombre','Cargo','Especialidad','Email'];
+  const note = canSchedules
+    ? 'Directorio del equipo. Desde la columna <strong>Agenda</strong> cargás la disponibilidad de cada profesional: sin ese paso no se le pueden asignar turnos.'
+    : 'Directorio de contacto del equipo.';
+  const directory = `<section class="panel"><h2>Equipo profesional <span class="pill">${state.professionals.length}</span></h2><p class="panel-note">${note}</p>${table(headers,rows)}</section>`;
   // El equipo clínico abre esta pestaña para verse a sí mismo, no para
   // consultar un listado: primero su ficha con su carga real de trabajo,
   // y el directorio del equipo debajo como referencia.
-  const main = isClinicalRole() ? myProfessionalCard() + directory : directory;
+  const main = isClinicalRole()
+    ? myProfessionalCard() + directory
+    : directory + professionalAgendaPanel();
   return `<div class="board"><div class="board-main">${main}</div><aside class="board-side">${form}</aside></div>`;
+}
+const WEEKDAYS = [[1,'Lunes'],[2,'Martes'],[3,'Miércoles'],[4,'Jueves'],[5,'Viernes'],[6,'Sábado'],[0,'Domingo']];
+const WEEKDAY_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function availabilityFor(professionalId) {
+  return state.availability.filter(item => item.professional_id === professionalId)
+    .sort((a,b) => (a.weekday===0?7:a.weekday)-(b.weekday===0?7:b.weekday) || a.start_time.localeCompare(b.start_time));
+}
+function availabilitySummary(professionalId) {
+  const rules = availabilityFor(professionalId);
+  if (!rules.length) return '<span class="tag amber">sin agenda</span>';
+  const byDay = {};
+  rules.forEach(item => { (byDay[item.weekday] = byDay[item.weekday] || []).push(`${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}`); });
+  return `<span class="avail-sum">${Object.keys(byDay).map(day => `${WEEKDAY_SHORT[day]} ${byDay[day].join(', ')}`).join(' · ')}</span>`;
+}
+// Panel de agenda: se abre desde el listado de profesionales para que quien
+// da de alta al equipo pueda dejarle la disponibilidad cargada en el mismo
+// momento, sin pasar por la pestaña Agenda.
+function professionalAgendaPanel() {
+  if (!selectedProfessionalId) return '';
+  const professional = state.professionals.find(item => item.id === selectedProfessionalId);
+  if (!professional) { selectedProfessionalId = null; return ''; }
+  const rules = availabilityFor(professional.id);
+  const today = orgDateKey(new Date());
+  const ruleRows = rules.map(item => [
+    esc(WEEKDAY_SHORT[item.weekday]),
+    `${item.start_time.slice(0,5)} – ${item.end_time.slice(0,5)}`,
+    esc(item.effective_from || '-'),
+    `<button class="btn small danger" data-avail-delete="${item.id}">Quitar</button>`
+  ]);
+  const warn = rules.length ? '' : '<p class="notice warn-inline">Sin disponibilidad cargada todavía: hasta que la definas, nadie puede asignarle turnos ni la persona puede reservar desde el portal.</p>';
+  return `<section class="panel highlight" id="agendaPanel">
+    <h2>Agenda de ${esc(professional.full_name)}</h2>
+    <p class="panel-note">Definí los días y las franjas en que atiende. Es lo que después se ofrece como horarios libres al agendar y en el portal.</p>
+    ${warn}
+    <h3 style="margin:14px 0 6px">Carga rápida</h3>
+    <p class="muted">Los esquemas más habituales, de lunes a viernes:</p>
+    <div class="row-actions preset-row">
+      <button class="btn small secondary" data-avail-preset="09:00|13:00">Mañana 09–13</button>
+      <button class="btn small secondary" data-avail-preset="14:00|19:00">Tarde 14–19</button>
+      <button class="btn small secondary" data-avail-preset="09:00|13:00,14:00|19:00">Jornada completa 09–13 y 14–19</button>
+    </div>
+    <h3 style="margin:16px 0 6px">Agregar una franja puntual</h3>
+    <form id="profAvailForm" class="form two-cols" data-professional="${professional.id}">
+      <label class="field">Día<select name="weekday">${WEEKDAYS.map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
+      <label class="field">Vigente desde<input name="effective_from" type="date" value="${today}" required></label>
+      ${field('start_time','Desde','time',true)}
+      ${field('end_time','Hasta','time',true)}
+      <button class="btn secondary full">Agregar franja</button>
+    </form>
+    <h3 style="margin:16px 0 6px">Disponibilidad cargada</h3>
+    ${table(['Día','Horario','Vigente desde','Acción'], ruleRows)}
+  </section>`;
 }
 function myProfessionalCard() {
   const me = state.professionals.find(item => item.id === profile?.professional_id);
@@ -505,6 +592,7 @@ function myProfessionalCard() {
     <p class="muted">${esc(me.role_title || '')}${me.specialty ? ` · ${esc(me.specialty)}` : ''}${me.license_number ? ` · Matrícula ${esc(me.license_number)}` : ''}</p>
     <div class="kpis"><div class="kpi b1"><span>Personas a mi cargo</span><strong>${myPatients.length}</strong></div><div class="kpi"><span>Mis turnos próximos</span><strong>${myAppointments.length}</strong></div><div class="kpi b4"><span>Mis grupos próximos</span><strong>${myGroups.length}</strong></div></div>
     <p class="${myAvailability.length ? 'panel-note' : 'notice warn-inline'}"><strong>Mi disponibilidad:</strong> ${esc(availabilityText)}</p>
+    <div class="row-actions"><button class="btn small secondary" data-tab="schedule">${myAvailability.length ? 'Ajustar mi disponibilidad' : 'Cargar mi disponibilidad'}</button></div>
     <h3 style="margin:14px 0 6px">Personas que acompaño</h3>
     ${table(['Persona','Estado','Riesgo','Próximo turno'], patientRows)}
   </section>`;
@@ -711,7 +799,61 @@ function bindTab() {
     if(formData.get('contact_name')) await sb.from('patient_contacts').insert({patient_id:data.id,full_name:formData.get('contact_name'),email:formData.get('contact_email')||null,phone:formData.get('contact_phone')||null,relationship:formData.get('contact_relationship')||null,is_authorized:Boolean(formData.get('contact_authorized')),can_access_portal:Boolean(formData.get('contact_authorized')),can_receive_updates:Boolean(formData.get('contact_authorized'))});
     await load();render();notice('Paciente y referente guardados.');
   });
-  document.getElementById('professionalForm')?.addEventListener('submit',async event=>{event.preventDefault();try{await save('professionals',{...pick(event.currentTarget,['full_name','role_title','specialty','license_number','email','phone','bio']),active:true},'Profesional guardado. Recordá crearle acceso y cargar su disponibilidad.');}catch(error){notice(friendly(error),'error');}});
+  // Alta de profesional: al guardar, se abre directamente su agenda para
+  // dejar cargada la disponibilidad en el mismo momento (sin ese paso no se
+  // le pueden asignar turnos).
+  document.getElementById('professionalForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const payload={...pick(event.currentTarget,['full_name','role_title','specialty','license_number','email','phone','bio']),active:true};
+    const {data,error}=await sb.from('professionals').insert(payload).select().single();
+    if(error)return notice(friendly(error),'error');
+    selectedProfessionalId=data.id;
+    await load();render();
+    notice(`${data.full_name} quedó dado de alta. Cargale la disponibilidad acá abajo y después creale el acceso en la pestaña Accesos.`);
+    document.getElementById('agendaPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+
+  // Agenda del profesional (pestaña Profesionales)
+  document.querySelectorAll('[data-prof-agenda]').forEach(button=>button.addEventListener('click',()=>{
+    selectedProfessionalId=button.dataset.profAgenda;render();
+    document.getElementById('agendaPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+  document.getElementById('profAvailForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const form=event.currentTarget;const fd=new FormData(form);
+    if(String(fd.get('end_time'))<=String(fd.get('start_time')))return notice('La hora de fin debe ser posterior a la de inicio.','error');
+    const {error}=await sb.from('professional_availability_rules').insert({
+      professional_id:form.dataset.professional,weekday:Number(fd.get('weekday')),
+      start_time:fd.get('start_time'),end_time:fd.get('end_time'),
+      effective_from:fd.get('effective_from'),active:true
+    });
+    if(error)return notice(friendly(error),'error');
+    await load();render();notice('Franja agregada: esos horarios ya se ofrecen al agendar.');
+  });
+  document.querySelectorAll('[data-avail-preset]').forEach(button=>button.addEventListener('click',async()=>{
+    if(!selectedProfessionalId)return;
+    button.disabled=true;
+    const today=orgDateKey(new Date());
+    const rows=[];
+    button.dataset.availPreset.split(',').forEach(range=>{
+      const [start,end]=range.split('|');
+      [1,2,3,4,5].forEach(weekday=>rows.push({professional_id:selectedProfessionalId,weekday,start_time:start,end_time:end,effective_from:today,active:true}));
+    });
+    // No duplicar lo que ya esté cargado para ese día y horario.
+    const existing=availabilityFor(selectedProfessionalId);
+    const nuevos=rows.filter(row=>!existing.some(item=>item.weekday===row.weekday&&item.start_time.slice(0,5)===row.start_time));
+    if(!nuevos.length){button.disabled=false;return notice('Esas franjas ya estaban cargadas.');}
+    const {error}=await sb.from('professional_availability_rules').insert(nuevos);
+    button.disabled=false;
+    if(error)return notice(friendly(error),'error');
+    await load();render();notice(`Disponibilidad cargada: ${nuevos.length} franja(s) de lunes a viernes.`);
+  }));
+  document.querySelectorAll('[data-avail-delete]').forEach(button=>button.addEventListener('click',async()=>{
+    if(!confirm('¿Quitar esta franja de disponibilidad? Los turnos ya agendados no se modifican.'))return;
+    const {error}=await sb.from('professional_availability_rules').delete().eq('id',button.dataset.availDelete);
+    if(error)return notice(friendly(error),'error');
+    await load();render();notice('Franja quitada.');
+  }));
 
   ['slotProfessional','slotDate','slotType'].forEach(id=>document.getElementById(id)?.addEventListener('change',refreshSlots));
   document.getElementById('appointmentForm')?.addEventListener('submit',async event=>{
